@@ -1,4 +1,5 @@
-﻿Imports System.IO
+﻿Imports System.ComponentModel
+Imports System.IO
 Imports System.IO.Compression
 Imports System.Reflection
 Imports System.Reflection.Emit
@@ -212,13 +213,7 @@ Public Class RpNetLib
                     End If
                     If found_type IsNot Nothing Then DS.Push(Activator.CreateInstance(found_type, argument_list.ToArray)) Else Throw New Exception("bad argument")
                 End Sub},
-        {"ndrop", Sub()
-                      Dim i As Integer = DirectCast(DS.Pop, Integer)
-                      While i > 0
-                          DS.Pop()
-                          i -= 1
-                      End While
-                  End Sub},
+        {"ndrop", Sub() DS.RemoveRange(0, DirectCast(DS.Pop, Integer))},
         {"sto", Sub() ' this is for storing into variables. Will be also used for temporary variables (called labmdas in RPL) later on
                     Dim id As Identifier = DirectCast(DS.Pop, Identifier)
                     If vars.ContainsKey(id.name) Then vars(id.name) = DS.Pop Else vars.Add(id.name, DS.Pop)
@@ -233,6 +228,8 @@ Public Class RpNetLib
                         Dim l As List(Of Object) = DirectCast(DS.Pop, List(Of Object))
                         l.RemoveAt(index)
                         l.Insert(index, ob)
+                    Else
+                        Throw New Exception("bad argument type")
                     End If
 
                 End Sub},
@@ -274,74 +271,7 @@ Public Class RpNetLib
                      f.Controls.Add(p)
                      f.Show()
                  End Sub},
-        {"reinit", Sub()
-                       Dim asmlist As New List(Of String)
-                       Dim pi As New ProcessStartInfo(gacutil_path, "-l") With {
-                                    .CreateNoWindow = True,
-                                    .WindowStyle = ProcessWindowStyle.Hidden,
-                                    .UseShellExecute = False,
-                                    .RedirectStandardOutput = True,
-                                    .RedirectStandardError = True}
-                       Dim pr As Process = Process.Start(pi)
-                       Dim asms As New Dictionary(Of String, AsmInfo)
-                       While Not pr.StandardOutput.EndOfStream
-                           Try
-                               While Not pr.StandardOutput.EndOfStream
-                                   Dim l As String = pr.StandardOutput.ReadLine().Trim
-                                   If l.Length < 4 Then Continue While
-                                   Dim parts() As String = l.Split(New Char() {" "c, ","c}, StringSplitOptions.RemoveEmptyEntries)
-                                   If parts.Length < 2 OrElse Not parts(1).StartsWith("Version") OrElse parts(0).Contains("DirectX") Then Continue While
-                                   Dim culture As String = parts.FirstOrDefault(Function(s) s.StartsWith("Culture")).Split("="c)(1)
-                                   If culture <> "en" AndAlso culture <> "neutral" Then Continue While
-                                   'Dim arch As String = parts.FirstOrDefault(Function(s) s.StartsWith("processor")).Split("="c)(1)
-                                   'If arch <> "MSIL" AndAlso arch <> "x86" Then Continue While
-                                   Dim version As String = parts.FirstOrDefault(Function(s) s.StartsWith("Version")).Split("="c)(1)
-                                   Dim nums() As Integer = Array.ConvertAll(version.Split("."c), Function(s) Integer.Parse(s))
-                                   Dim bAdd As Boolean = True
-                                   If asms.Keys.Contains(parts(0)) Then If Higher(nums, asms(parts(0)).version) Then asms.Remove(parts(0)) Else bAdd = False
-                                   If bAdd Then asms.Add(parts(0), New AsmInfo With {.Fullname = l, .version = nums})
-                               End While
-                           Catch ex As Exception
-                               W(ex.Message & vbNewLine & ex.StackTrace)
-                           End Try
-                       End While
-                       pr.WaitForExit()
-                       'Array.ForEach(asms.Keys.ToArray, Sub(s) W(s))
-                       Dim deps As New Dictionary(Of String, List(Of String))
-                       Dim sw As New Stopwatch
-                       sw.Start()
-                       W("loading " & asms.Count & " assemblies")
-
-
-                       Dim i As Integer = 0
-                       Dim failed As Integer = 0
-                       Dim total As Integer = asms.Count
-
-                       Do
-                           Try
-                               Do
-                                   Dim asmname As String = asms.Keys(i)
-                                   Dim asm As Assembly = Assembly.Load(asms(asmname).Fullname)
-                                   deps.Add(asms(asmname).Fullname, Array.ConvertAll(asm.GetTypes(), Function(a) a.FullName).ToList)
-                                   i += 1
-                                   If sw.ElapsedMilliseconds > 1000 Then
-                                       W(Math.Round(i / total * 100.0, 2) & " %")
-                                       sw.Restart()
-                                   End If
-                               Loop While i < total
-                           Catch ex As Exception
-                               failed += 1
-                               i += 1
-                           End Try
-                       Loop While i < total
-
-                       Dim aFormatter As IFormatter = New BinaryFormatter
-                       File.Delete("../test.bin")
-                       Using aStream As Stream = New FileStream("../test.bin", FileMode.Create, FileAccess.Write, FileShare.None),
-                         gz As New GZipStream(aStream, CompressionLevel.Optimal)
-                           aFormatter.Serialize(gz, deps)
-                       End Using
-                   End Sub},
+        {"reinit", Sub() ReInit()},
         {"findtypes", Sub()
                           Dim wantedTypeName As String = DirectCast(DS.Pop, String).ToLower
                           Dim ls As New List(Of Object)
@@ -351,24 +281,15 @@ Public Class RpNetLib
                           Next
                           DS.Push(ls)
                       End Sub},
-        {"until", Sub()
-                      Dim o As Object = DS.Pop
-                      loops.Push(0)
-                      Do
-                          Eval(o)
-                          loops.Push(loops.Pop + 1)
-                      Loop Until DS.Pop
-                      loops.Pop()
-                  End Sub},
-        {"while", Sub()
-                      Dim o As Object = DS.Pop
-                      loops.Push(0)
-                      Do
-                          Eval(o)
-                          loops.Push(loops.Pop + 1)
-                      Loop While DS.Pop
-                      loops.Pop()
-                  End Sub},
+        {"loop", Sub() ' pops an object from the stack and evaluates it until it leaves a true on the stack. To use it as a "while" just add a not at the end of your command 
+                     Dim o As Object = DS.Pop
+                     loops.Push(0)
+                     Do
+                         Eval(o)
+                         loops.Push(loops.Pop + 1)
+                     Loop Until DS.Pop
+                     loops.Pop()
+                 End Sub},
         {"for", Sub()
                     Dim iEnd As Integer = DS.Pop
                     Dim iStart As Integer = DS.Pop
@@ -380,7 +301,7 @@ Public Class RpNetLib
                     Next
                     loops.Pop()
                 End Sub},
-        {"seq", Sub()
+        {"seq", Sub() ' ob # # -> {}, evaluates ob from # on L2 to # on L1 and puts any results in a list, nested if necessary. it creates a sequence. 
                     Dim iEnd As Integer = DS.Pop
                     Dim iStart As Integer = DS.Pop
                     Dim o As Object = DS.Pop
@@ -393,11 +314,7 @@ Public Class RpNetLib
                         If depthAfter - depthBefore = 1 Then
                             nl.Add(DS.Pop)
                         ElseIf depthAfter - depthBefore > 1 Then
-                            Dim sl As New List(Of Object)
-                            For j As Integer = depthBefore To depthAfter - 1
-                                sl.Add(DS.Pop())
-                            Next
-                            sl.Reverse()
+                            Dim sl As New List(Of Object)(DS.Take(depthAfter - depthBefore).Reverse)
                             nl.Add(sl)
                         End If
                         loops.Push(loops.Pop + 1)
@@ -405,22 +322,6 @@ Public Class RpNetLib
                     loops.Pop()
                     DS.Push(nl)
                 End Sub},
-        {"toqualifiedname", Sub()
-                                Dim wantedTypeName As String = DirectCast(DS.Pop, String).ToLower
-                                Dim t As String = ""
-                                Dim asm_name As String = ""
-                                For Each one In deps.Keys
-                                    t = deps(one).FirstOrDefault(Function(l) l.ToLower.EndsWith(wantedTypeName))
-                                    asm_name = one
-                                    If t <> "" Then Exit For
-                                Next
-                                If t <> "" Then
-                                    DS.Push(t)
-                                    DS.Push(asm_name)
-                                Else
-                                    DS.Push(Nothing)
-                                End If
-                            End Sub},
         {"pick", Sub()
                      Dim l As Integer = DS.Pop
                      DS.Push(DS(l - 1))
@@ -440,21 +341,14 @@ Public Class RpNetLib
                     Dim nl As New List(Of Object)
                     Dim count As Integer = DS.Pop
                     nl.AddRange(DS.Take(count).Reverse)
-                    While count > 0
-                        DS.Pop()
-                        count -= 1
-                    End While
+                    If count > 0 Then DS.RemoveRange(0, count)
                     DS.Push(nl)
                 End Sub},
         {"::n", Sub()
                     Dim ns As New Secondary
                     Dim count As Integer = DS.Pop
                     ns.AddRange(DS.Take(count).Reverse)
-                    If count > 0 Then
-                        For i As Integer = 0 To count - 1
-                            DS.Pop()
-                        Next
-                    End If
+                    If count > 0 Then DS.RemoveRange(0, count)
                     DS.Push(ns)
                 End Sub},
         {"+", Sub()
@@ -497,17 +391,17 @@ Public Class RpNetLib
                     Dim l1 As Object = DS.Pop
                     DS.Push(l1 Mod l0)
                 End Sub},
-        {"'", Sub()
+        {"'", Sub() ' instead of Eval() the next object, it pushes it onto the stack
                   Dim currentFrame As StackFrame = RS.Peek
                   DS.Push(currentFrame.Secondary(currentFrame.I))
                   currentFrame.I += 1
               End Sub},
-        {"'r", Sub()
+        {"'r", Sub() ' takes the next object from the lower stackframe and pushes it onto the stack, e.g. :: :: # 1 # 2 'r - ; # 3 + ; would cause # 3 to be subtracted from # 2. yes you can make infix operators with this
                    Dim previousFrame As StackFrame = RS(1)
                    DS.Push(previousFrame.Secondary(previousFrame.I))
                    previousFrame.I += 1
                End Sub},
-        {"dolist", Sub()
+        {"dolist", Sub() ' aka "ForEach" but it will be able to operate on multiple lists etc. the indexing operator (?i) is not usable yet
                        Dim act As Object = DS.Pop
                        'Dim lcount As Integer = DS.Pop
                        'If lcount <> 1 Then Throw New Exception("not implemented for lcount <> 1")
@@ -525,20 +419,103 @@ Public Class RpNetLib
                            ElseIf depth_after - depth_before = 1 Then
                                output_list.Add(DS.Pop)
                            End If
-                           While DS.Count > depth_before
-                               DS.Pop()
-                           End While
+                           If DS.Count > depth_before Then DS.RemoveRange(0, DS.Count - depth_before)
                        Next
                        If output_list.Count > 0 Then DS.Push(output_list)
                    End Sub},
         {"def", Sub()
-                    words.Add(DS(0), DS(1))
-                    DS.Pop()
-                    DS.Pop()
+                    words.Add(DirectCast(DS(0), String), DS(1))
+                    DS.RemoveRange(0, 2)
                 End Sub},
         {"undef", Sub() If TypeOf DS.Peek Is String AndAlso words.ContainsKey(DirectCast(DS.Peek, String)) Then words.Remove(DirectCast(DS.Pop, String))}
     }
 
+
+    Sub ReInit()
+        W("please wait")
+        Dim asmlist As New List(Of String)
+        Dim pi As New ProcessStartInfo(gacutil_path, "-l") With {
+                                    .CreateNoWindow = True,
+                                    .WindowStyle = ProcessWindowStyle.Hidden,
+                                    .UseShellExecute = False,
+                                    .RedirectStandardOutput = True,
+                                    .RedirectStandardError = True}
+        Dim pr As Process = Process.Start(pi)
+        Dim asms As New Dictionary(Of String, AsmInfo)
+        While Not pr.StandardOutput.EndOfStream
+            Try
+                While Not pr.StandardOutput.EndOfStream
+                    Dim l As String = pr.StandardOutput.ReadLine().Trim
+                    If l.Length < 4 Then Continue While
+                    Dim parts() As String = l.Split(New Char() {" "c, ","c}, StringSplitOptions.RemoveEmptyEntries)
+                    If parts.Length < 2 OrElse Not parts(1).StartsWith("Version") OrElse parts(0).Contains("DirectX") Then Continue While
+                    Dim culture As String = parts.FirstOrDefault(Function(s) s.StartsWith("Culture")).Split("="c)(1)
+                    If culture <> "en" AndAlso culture <> "neutral" Then Continue While
+                    'Dim arch As String = parts.FirstOrDefault(Function(s) s.StartsWith("processor")).Split("="c)(1)
+                    'If arch <> "MSIL" AndAlso arch <> "x86" Then Continue While
+                    Dim version As String = parts.FirstOrDefault(Function(s) s.StartsWith("Version")).Split("="c)(1)
+                    Dim nums() As Integer = Array.ConvertAll(version.Split("."c), Function(s) Integer.Parse(s))
+                    Dim bAdd As Boolean = True
+                    If asms.Keys.Contains(parts(0)) Then If Higher(nums, asms(parts(0)).version) Then asms.Remove(parts(0)) Else bAdd = False
+                    If bAdd Then asms.Add(parts(0), New AsmInfo With {.Fullname = l, .version = nums})
+                End While
+            Catch ex As Exception
+                W(ex.Message & vbNewLine & ex.StackTrace)
+            End Try
+        End While
+        pr.WaitForExit()
+
+        Dim bw As New BackgroundWorker() With {.WorkerReportsProgress = True}
+        Dim work As DoWorkEventHandler = Sub(ob, args)
+                                             Dim worker As BackgroundWorker = DirectCast(ob, BackgroundWorker)
+                                             Dim aasms As Dictionary(Of String, AsmInfo) = DirectCast(args.Argument, Dictionary(Of String, AsmInfo))
+                                             Dim sw As New Stopwatch
+                                             sw.Start()
+                                             Dim i As Integer = 0
+                                             Dim failed As Integer = 0
+                                             Dim total As Integer = asms.Count
+                                             Dim teps As New Dictionary(Of String, List(Of String))
+                                             Do
+                                                 Try
+                                                     Do
+                                                         Dim asmname As String = aasms.Keys(i)
+                                                         Dim asm As Assembly = Assembly.Load(aasms(asmname).Fullname)
+                                                         teps.Add(aasms(asmname).Fullname, Array.ConvertAll(asm.GetTypes(), Function(a) a.FullName).ToList)
+                                                         i += 1
+                                                         If sw.ElapsedMilliseconds > 100 Then
+                                                             worker.ReportProgress(CType(Math.Ceiling(i / total * 100.0), Integer))
+                                                             sw.Restart()
+                                                         End If
+                                                     Loop While i < total
+                                                 Catch ex As Exception
+                                                     failed += 1
+                                                     i += 1
+                                                 End Try
+                                             Loop While i < total
+                                             args.Result = teps
+                                         End Sub
+        AddHandler bw.DoWork, work
+        Dim prog As ProgressChangedEventHandler = Sub(ob, args)
+                                                      W(args.ProgressPercentage & " %")
+                                                  End Sub
+        AddHandler bw.ProgressChanged, prog
+        Dim done As RunWorkerCompletedEventHandler = Sub(ob, args)
+                                                         deps = DirectCast(args.Result, Dictionary(Of String, List(Of String)))
+                                                         Dim aFormatter As IFormatter = New BinaryFormatter
+                                                         File.Delete("../test.bin")
+                                                         Using aStream As Stream = New FileStream("../test.bin", FileMode.Create, FileAccess.Write, FileShare.None),
+                                                           gz As New GZipStream(aStream, CompressionLevel.Optimal)
+                                                             aFormatter.Serialize(gz, deps)
+                                                         End Using
+                                                         Dim totaltypes As Integer = 0
+                                                         For Each k In deps.Keys
+                                                             totaltypes += deps(k).Count
+                                                         Next
+                                                         W("done (" & totaltypes & " types in " & deps.Count & " assemblies)")
+                                                     End Sub
+        AddHandler bw.RunWorkerCompleted, done
+        bw.RunWorkerAsync(asms)
+    End Sub
 
     Sub DispReturnStack()
         W("return stack:")
