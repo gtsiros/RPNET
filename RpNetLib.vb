@@ -45,7 +45,13 @@ Public Class RpNetLib
     ' change this to where gacutil.exe is 
     Const gacutil_path As String = "C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.7.1 Tools\gacutil.exe"
 
-    Public Shared Function Higher(ByRef a() As Integer, ByRef b() As Integer) As Boolean
+    Public deps As Dictionary(Of String, List(Of String))
+    Public delims As New Dictionary(Of String, Tok) From {{"::", Tok.SecondaryOpen}, {";", Tok.SecondaryClose}, {"{", Tok.CurlyOpen}, {"}", Tok.CurlyClose}, {"(", Tok.ParenOpen}, {")", Tok.ParenClose}, {"[", Tok.BracketOpen}, {"]", Tok.BracketClose}, {"#", Tok.delim_bint}, {"%", Tok.delim_single}, {"%%", Tok.delim_double}, {"$", Tok.delim_cstring}, {"id", Tok.delim_identifier}}
+    Public types As New Dictionary(Of Tok, Type) From {{Tok.delim_bint, GetType(Integer)}, {Tok.delim_single, GetType(Single)}, {Tok.delim_double, GetType(Double)}, {Tok.delim_cstring, GetType(String)}, {Tok.delim_identifier, GetType(String)}}
+    Public itypes As New Dictionary(Of Type, Integer) From {{GetType(Integer), 1}, {GetType(String), 2}, {GetType(Identifier), 3}, {GetType(List(Of Object)), 4}, {GetType(Secondary), 5}, {GetType(Type), 6}, {GetType(Boolean), 7}}
+    Public escapes As New Dictionary(Of Char, Char) From {{"\"c, "\"c}, {"n"c, Chr(10)}, {"r"c, Chr(13)}, {"t"c, Chr(9)}, {""""c, """"c}}
+
+    Public Shared Function Higher(ByRef a() As Integer, ByRef b() As Integer) As Boolean ' compares version numbers. 
         Higher = False
         Dim undecided As Boolean = False
         Dim i As Integer = 0
@@ -56,17 +62,8 @@ Public Class RpNetLib
         Loop While undecided AndAlso i < 4
     End Function
 
-
-
-    Public deps As Dictionary(Of String, List(Of String))
-    Dim delims As New Dictionary(Of String, Tok) From {{"::", Tok.SecondaryOpen}, {";", Tok.SecondaryClose}, {"{", Tok.CurlyOpen}, {"}", Tok.CurlyClose}, {"(", Tok.ParenOpen}, {")", Tok.ParenClose}, {"[", Tok.BracketOpen}, {"]", Tok.BracketClose}, {"#", Tok.delim_bint}, {"%", Tok.delim_single}, {"%%", Tok.delim_double}, {"$", Tok.delim_cstring}, {"id", Tok.delim_identifier}}
-    Dim types As New Dictionary(Of Tok, Type) From {{Tok.delim_bint, GetType(Integer)}, {Tok.delim_single, GetType(Single)}, {Tok.delim_double, GetType(Double)}, {Tok.delim_cstring, GetType(String)}, {Tok.delim_identifier, GetType(String)}}
-    Dim itypes As New Dictionary(Of Type, Integer) From {{GetType(Integer), 0}, {GetType(Single), 1}, {GetType(Double), 2}, {GetType(String), 3}, {GetType(Secondary), 4}, {GetType(Type), 5}, {GetType(Boolean), 7}}
-    Dim escapes As New Dictionary(Of Char, Char) From {{"\"c, "\"c}, {"n"c, Chr(10)}, {"r"c, Chr(13)}, {"t"c, Chr(9)}, {""""c, """"c}}
-
-    Public Class Flerm
+    <DebuggerStepThrough> Public Class StackListHybrid
         Inherits List(Of Object)
-
         Public Function Pop() As Object
             Pop = Item(0)
             RemoveAt(0)
@@ -101,7 +98,7 @@ Public Class RpNetLib
 
     End Class
 
-    Public DS As New Flerm
+    Public DS As New StackListHybrid
     Public RS As New Stack(Of StackFrame)
 
     Dim vars As New Dictionary(Of String, Object)
@@ -136,11 +133,9 @@ Public Class RpNetLib
         End Sub
 
 
-        Shared Shadows Operator +(ByVal a As Secondary, ByVal b As Secondary) As Secondary
-            Dim foo As New Secondary
-            foo.AddRange(a)
+        Shared Shadows Operator +(ByVal a As Secondary, ByVal b As Secondary) As Secondary ' just so you can concatenate programs.
+            Dim foo As New Secondary(a)
             foo.AddRange(b)
-
             Return foo
         End Operator
     End Class
@@ -175,7 +170,7 @@ Public Class RpNetLib
         {"dup", Sub() DS.Push(DS.Peek)},
         {"end", Sub() End},
         {"errorout", Sub() Throw New Exception(DirectCast(DS.Pop, String))},
-        {"eval", Sub() Eval(DS.Pop)},
+        {"eval", Sub() If TypeOf DS.Peek Is List(Of Object) Then Eval(New Secondary(DirectCast(DS.Pop, List(Of Object)))) Else Eval(DS.Pop)}, ' this difference between user eval and system eval exists in RPL too. 
         {"false", False}, ' -> false
         {"import", Sub() DS.Push(Assembly.Load(DirectCast(DS.Pop, String)))}, ' can be done with reflection, too
         {"load", Sub() DS.Push(Assembly.LoadFile(Directory.GetCurrentDirectory() & "\" & DirectCast(DS.Pop, String)))}, ' this one too
@@ -206,9 +201,9 @@ Public Class RpNetLib
                     Dim argument_list As List(Of Object)
                     If TypeOf DS.Peek Is List(Of Object) Then argument_list = DirectCast(DS.Pop, List(Of Object)) Else argument_list = New List(Of Object)
                     Dim found_type As Type = Nothing
-                    If TypeOf DS.Pop Is String Then
+                    If TypeOf DS(0) Is String Then
                         found_type = ToType(DirectCast(DS.Pop, String))
-                    ElseIf TypeOf DS.Peek Is Type Then
+                    ElseIf TypeOf DS(0) Is Type Then
                         found_type = DirectCast(DS.Pop, Type)
                     End If
                     If found_type IsNot Nothing Then DS.Push(Activator.CreateInstance(found_type, argument_list.ToArray)) Else Throw New Exception("bad argument")
@@ -254,14 +249,9 @@ Public Class RpNetLib
                   Dim ob As Object = DS.Pop
                   Dim argument_array() As Object = argument_list.ToArray
                   Dim argument_types() As Type = Array.ConvertAll(argument_array, Function(o) o.GetType)
-                  Dim object_type As Type
-                  Dim bWasType As Boolean = TypeOf ob Is Type
-                  If bWasType Then object_type = DirectCast(ob, Type) Else object_type = ob.GetType
-                  Dim method_info As MethodInfo = object_type.GetRuntimeMethod(method_name, argument_types)
-                  'Stop
+                  Dim method_info As MethodInfo = ob.GetType.GetRuntimeMethod(method_name, argument_types)
                   If method_info Is Nothing Then Throw New Exception("no such method")
-                  Dim return_object As Object
-                  If bWasType Then return_object = method_info.Invoke(Nothing, argument_array) Else return_object = method_info.Invoke(ob, argument_array)
+                  Dim return_object As Object = method_info.Invoke(ob, argument_array)
                   If method_info.ReturnType = GetType(Void) Then Exit Sub
                   If method_info.ReturnType = GetType(Array) AndAlso return_object IsNot Nothing Then DS.Push(New List(Of Object)(DirectCast(return_object, Array))) Else DS.Push(return_object)
               End Sub},
@@ -352,9 +342,26 @@ Public Class RpNetLib
                     DS.Push(ns)
                 End Sub},
         {"+", Sub()
-                  Dim l0 As Object = DS.Pop
-                  Dim l1 As Object = DS.Pop
-                  DS.Push(l1 + l0)
+                  Dim t As Integer = 0
+                  If TypeOf DS(0) Is List(Of Object) Then t += 1
+                  If TypeOf DS(1) Is List(Of Object) Then t += 2
+
+                  Select Case t
+                      Case 0
+                          Dim o0 As Object = DS.Pop
+                          Dim o1 As Object = DS.Pop
+                          DS.Push(o1 + o0)
+                      Case 1
+                          Dim o1 As Object = DS(1)
+                          DS.RemoveAt(1)
+                          DirectCast(DS(0), List(Of Object)).Insert(0, o1)
+                      Case 2
+                          Dim o0 As Object = DS.Pop
+                          DirectCast(DS(0), List(Of Object)).Add(o0)
+                      Case 3
+                          Dim l0 As List(Of Object) = DirectCast(DS.Pop, List(Of Object))
+                          DirectCast(DS(0), List(Of Object)).AddRange(l0)
+                  End Select
               End Sub},
         {"-", Sub()
                   Dim l0 As Object = DS.Pop
@@ -430,9 +437,10 @@ Public Class RpNetLib
         {"undef", Sub() If TypeOf DS.Peek Is String AndAlso words.ContainsKey(DirectCast(DS.Peek, String)) Then words.Remove(DirectCast(DS.Pop, String))}
     }
 
-
     Sub ReInit()
-        W("please wait")
+        ' should really change this to use some kind of trie search 
+        ' for improvement in speed (don't care much) and size (don't care much, it's 1.3 MB for a hundred thousand types anyway)
+        ' but i like it if the code is nicer
         Dim asmlist As New List(Of String)
         Dim pi As New ProcessStartInfo(gacutil_path, "-l") With {
                                     .CreateNoWindow = True,
@@ -451,7 +459,7 @@ Public Class RpNetLib
                     If parts.Length < 2 OrElse Not parts(1).StartsWith("Version") OrElse parts(0).Contains("DirectX") Then Continue While
                     Dim culture As String = parts.FirstOrDefault(Function(s) s.StartsWith("Culture")).Split("="c)(1)
                     If culture <> "en" AndAlso culture <> "neutral" Then Continue While
-                    'Dim arch As String = parts.FirstOrDefault(Function(s) s.StartsWith("processor")).Split("="c)(1)
+                    'Dim arch As String = parts.FirstOrDefault(Function(s) s.StartsWith("processor")).Split("="c)(1) ' if you care
                     'If arch <> "MSIL" AndAlso arch <> "x86" Then Continue While
                     Dim version As String = parts.FirstOrDefault(Function(s) s.StartsWith("Version")).Split("="c)(1)
                     Dim nums() As Integer = Array.ConvertAll(version.Split("."c), Function(s) Integer.Parse(s))
@@ -517,17 +525,6 @@ Public Class RpNetLib
         bw.RunWorkerAsync(asms)
     End Sub
 
-    Sub DispReturnStack()
-        W("return stack:")
-        If RS.Count = 0 Then
-            W("empty")
-        Else
-            For i As Integer = DS.Count - 1 To 0
-                W(i & ": " & ToStr(RS(i)))
-            Next
-        End If
-    End Sub
-
     Function ToType(s As String) As Type
         Dim wantedTypeName As String = s.ToLower
         ToType = Nothing
@@ -547,11 +544,9 @@ Public Class RpNetLib
         ElseIf TypeOf ob Is String Then
             ToStr = "$ "
             Dim escaped As Boolean = False
-            Dim in_str As String = ob
-            Dim out_str As String = in_str
-            'Dim escaped_char As Char = vbNullChar
+            Dim in_str As String = DirectCast(ob, String)
+            Dim out_str As String = in_str ' a copy
             For Each c As Char In escapes.Keys
-                'escaped_char = in_str.Contains(c) 'FirstOrDefault(Function(cc) cc.Value = c).Key
                 If in_str.Contains(escapes(c)) Then
                     escaped = True
                     out_str = out_str.Replace(escapes(c), "\" & c)
@@ -585,7 +580,7 @@ Public Class RpNetLib
         ElseIf TypeOf ob Is Bitmap Then
             ToStr = "Bitmap " & DirectCast(ob, Image).Width & " x " & DirectCast(ob, Image).Height
         ElseIf TypeOf ob Is Array Then
-            Dim a As Array = DirectCast(ob, Array)
+            Dim a() As Object = DirectCast(ob, Object())
             ToStr = "[ "
             If a.Length > 0 Then
                 For i As Integer = 0 To a.Length - 1
@@ -639,12 +634,12 @@ Public Class RpNetLib
         If File.Exists("../test.bin") Then
             Dim aFormatter As IFormatter = New BinaryFormatter
             Using aStream As Stream = New FileStream("../test.bin", FileMode.Open, FileAccess.Read, FileShare.Read),
-                    ugz As New GZipStream(aStream, CompressionMode.Decompress)
+            ugz As New GZipStream(aStream, CompressionMode.Decompress)
                 deps = DirectCast(aFormatter.Deserialize(ugz), Dictionary(Of String, List(Of String)))
             End Using
         End If
     End Sub
-    Dim st As Stack(Of IList) 'maybe
+
 
     Function Split(s As String) As List(Of String)
         Split = New List(Of String)
@@ -702,31 +697,38 @@ Public Class RpNetLib
     Function Parse(src As String) As Secondary
         Parse = New Secondary()
         Dim tokens As List(Of String) = Split(src)
-        st = New Stack(Of IList)
+        Dim st As New Stack(Of IList)
         If tokens.Count > 0 Then
-            Dim pos As Integer = 0
             st.Push(Parse)
             Dim expect As Tok = Tok.none
+            Dim pos As Integer = 0
             Try
-                While pos < tokens.Count
+                For Each token As String In tokens
                     If expect <> Tok.none Then
                         Try
                             Dim o As Object
                             If expect = Tok.delim_cstring Then
-                                o = tokens(pos)
+                                o = token
                             ElseIf expect = Tok.delim_identifier Then
-                                o = New Identifier(tokens(pos))
+                                o = New Identifier(token)
                             Else
-                                o = CTypeDynamic(tokens(pos), types(expect))
+                                o = CTypeDynamic(token, types(expect))
                             End If
                             If o Is Nothing Then Throw New Exception()
                             st.Peek.Add(o)
                         Catch ex As Exception
-                            Throw New Exception("can Not represent a " & types(expect).ToString)
+                            Throw New Exception("can not represent a " & types(expect).ToString)
                         End Try
                         expect = Tok.none
                     Else
-                        Dim tt As Tok = TokenType(tokens(pos))
+                        Dim tt As Tok = Tok.none
+                        If words.ContainsKey(token) Then
+                            tt = Tok.word
+                        ElseIf delims.ContainsKey(token) Then
+                            tt = delims(token)
+                        ElseIf token(0) = "<"c AndAlso token(token.Length - 1) = ">"c Then
+                            tt = Tok.type
+                        End If
                         Select Case tt
                             Case Tok.CurlyOpen
                                 st.Push(New List(Of Object))
@@ -740,19 +742,19 @@ Public Class RpNetLib
                                 If TypeOf st.Peek IsNot Secondary Then Throw New Exception("mismatched secondary")
                                 Dim ob As Object = st.Pop
                                 st.Peek.Add(ob)
-                            Case Tok.BracketOpen, Tok.BracketClose, Tok.ParenOpen, Tok.ParenClose ' this is why i can't parse arrays yet
+                            Case Tok.BracketOpen, Tok.BracketClose, Tok.ParenOpen, Tok.ParenClose ' this is why it doesn't parse arrays yet
                             Case Tok.delim_bint, Tok.delim_single, Tok.delim_double, Tok.delim_cstring, Tok.delim_identifier
                                 expect = tt
                             Case Tok.word
-                                st.Peek.Add(words(tokens(pos)))
+                                st.Peek.Add(words(token))
                             Case Tok.type
-                                st.Peek.Add(ToType(tokens(pos).Substring(1, tokens(pos).Length - 2)))
+                                st.Peek.Add(ToType(token.Substring(1, token.Length - 2)))
                             Case Tok.none
-                                st.Peek.Add(New Identifier(tokens(pos)))
+                                st.Peek.Add(New Identifier(token))
                         End Select
                     End If
                     pos += 1
-                End While
+                Next
 
                 If st.Count = 0 Then
                     Throw New Exception("something went terribly wrong")
