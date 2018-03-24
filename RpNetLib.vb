@@ -10,138 +10,136 @@ Public Structure AsmInfo
 	Public version() As Integer
 End Structure
 
-
-
 Public Enum Tok
-		CurlyOpen
-		CurlyClose
-		SecondaryOpen
-		SecondaryClose
-		BracketOpen
-		BracketClose
-		ParenOpen
-		ParenClose
-		word
-		delim_bint
-		delim_single
-		delim_double
-		delim_cstring
-		delim_identifier
-		none
-	End Enum
+	CurlyOpen
+	CurlyClose
+	SecondaryOpen
+	SecondaryClose
+	BracketOpen
+	BracketClose
+	ParenOpen
+	ParenClose
+	word
+	delim_bint
+	delim_single
+	delim_double
+	delim_cstring
+	delim_identifier
+	none
+End Enum
 
-	Public Enum Lex
-		white
-		cstri
-		token
-		escap
-		comme
-	End Enum
-	Public Class RpNetLib
+Public Enum Lex
+	white
+	cstri
+	token
+	escap
+	comme
+End Enum
 
-		Public Shared Function Higher(ByRef a() As Integer, ByRef b() As Integer) As Boolean
-			Higher = False
-			Dim undecided As Boolean = False
-			Dim i As Integer = 0
-			Do
-				Higher = a(i) > b(i)
-				undecided = a(i) = b(i)
-				i += 1
-			Loop While undecided AndAlso i < 4
+Public Class RpNetLib
+	Public Shared Function Higher(ByRef a() As Integer, ByRef b() As Integer) As Boolean
+		Higher = False
+		Dim undecided As Boolean = False
+		Dim i As Integer = 0
+		Do
+			Higher = a(i) > b(i)
+			undecided = a(i) = b(i)
+			i += 1
+		Loop While undecided AndAlso i < 4
+	End Function
+
+
+
+	Public deps As Dictionary(Of String, List(Of String))
+	Dim delims As New Dictionary(Of String, Tok) From {{"::", Tok.SecondaryOpen}, {";", Tok.SecondaryClose}, {"{", Tok.CurlyOpen}, {"}", Tok.CurlyClose}, {"(", Tok.ParenOpen}, {")", Tok.ParenClose}, {"[", Tok.BracketOpen}, {"]", Tok.BracketClose}, {"#", Tok.delim_bint}, {"%", Tok.delim_single}, {"%%", Tok.delim_double}, {"$", Tok.delim_cstring}, {"id", Tok.delim_identifier}}
+	Dim types As New Dictionary(Of Tok, Type) From {{Tok.delim_bint, GetType(Integer)}, {Tok.delim_single, GetType(Single)}, {Tok.delim_double, GetType(Double)}, {Tok.delim_cstring, GetType(String)}, {Tok.delim_identifier, GetType(String)}}
+	Dim itypes As New Dictionary(Of Type, Integer) From {{GetType(Integer), 0}, {GetType(Single), 1}, {GetType(Double), 2}, {GetType(String), 3}, {GetType(Secondary), 4}, {GetType(Type), 5}, {GetType(Boolean), 7}}
+	Dim escapes As New Dictionary(Of Char, Char) From {{"\"c, "\"c}, {"n"c, Chr(10)}, {"r"c, Chr(13)}, {"t"c, Chr(9)}, {""""c, """"c}}
+
+	Public Class Flerm
+		Inherits List(Of Object)
+
+		Public Function Pop() As Object
+			Pop = Item(0)
+			RemoveAt(0)
 		End Function
-
-
-
-		Public deps As Dictionary(Of String, List(Of String))
-		Dim delims As New Dictionary(Of String, Tok) From {{"::", Tok.SecondaryOpen}, {";", Tok.SecondaryClose}, {"{", Tok.CurlyOpen}, {"}", Tok.CurlyClose}, {"(", Tok.ParenOpen}, {")", Tok.ParenClose}, {"[", Tok.BracketOpen}, {"]", Tok.BracketClose}, {"#", Tok.delim_bint}, {"%", Tok.delim_single}, {"%%", Tok.delim_double}, {"$", Tok.delim_cstring}, {"id", Tok.delim_identifier}}
-		Dim types As New Dictionary(Of Tok, Type) From {{Tok.delim_bint, GetType(Integer)}, {Tok.delim_single, GetType(Single)}, {Tok.delim_double, GetType(Double)}, {Tok.delim_cstring, GetType(String)}, {Tok.delim_identifier, GetType(String)}}
-		Dim itypes As New Dictionary(Of Type, Integer) From {{GetType(Integer), 0}, {GetType(Single), 1}, {GetType(Double), 2}, {GetType(String), 3}, {GetType(Secondary), 4}, {GetType(Type), 5}, {GetType(Boolean), 7}}
-		Dim escapes As New Dictionary(Of Char, Char) From {{"\"c, "\"c}, {"n"c, Chr(10)}, {"r"c, Chr(13)}, {"t"c, Chr(9)}, {""""c, """"c}}
-
-		Public Class Flerm
-			Inherits List(Of Object)
-
-			Public Function Pop() As Object
-				Pop = Item(0)
+		Public Sub Drop(ByVal n As Integer)
+			If n < 1 Then Exit Sub
+			Do
 				RemoveAt(0)
-			End Function
-			Public Sub Drop(ByVal n As Integer)
-				If n < 1 Then Exit Sub
-				Do
-					RemoveAt(0)
-					n -= 1
-				Loop While n > 0
-			End Sub
-			Public ReadOnly Property Peek As Object
-				Get
-					Peek = Item(0)
-				End Get
-			End Property
-			Public Shadows Sub Push(ob As Object)
-				Insert(0, ob)
-			End Sub
-			Public Sub Swap()
-				Insert(0, Item(1))
-				RemoveAt(2)
-			End Sub
-			Public Sub Rot()
-				Insert(0, Item(2))
-				RemoveAt(3)
-			End Sub
-			Public Sub Roll(i As Integer)
-				Insert(0, Item(i - 1))
-				RemoveAt(i)
-			End Sub
+				n -= 1
+			Loop While n > 0
+		End Sub
+		Public ReadOnly Property Peek As Object
+			Get
+				Peek = Item(0)
+			End Get
+		End Property
+		Public Shadows Sub Push(ob As Object)
+			Insert(0, ob)
+		End Sub
+		Public Sub Swap()
+			Insert(0, Item(1))
+			RemoveAt(2)
+		End Sub
+		Public Sub Rot()
+			Insert(0, Item(2))
+			RemoveAt(3)
+		End Sub
+		Public Sub Roll(i As Integer)
+			Insert(0, Item(i - 1))
+			RemoveAt(i)
+		End Sub
 
-		End Class
+	End Class
 
-		Public DS As New Flerm
-		Public RS As New Stack(Of StackFrame)
+	Public DS As New Flerm
+	Public RS As New Stack(Of StackFrame)
 
-		Dim vars As New Dictionary(Of String, Object)
-		Dim loops As New Stack(Of Integer)
+	Dim vars As New Dictionary(Of String, Object)
+	Dim loops As New Stack(Of Integer)
 
-		<Serializable> Class StackFrame
-			Sub New(i As Integer, o As Secondary)
-				Me.I = i
-				Me.Secondary = o
-			End Sub
-			Public Secondary As Secondary
-			Public I As Integer = 0
-		End Class
+	<Serializable> Class StackFrame
+		Sub New(i As Integer, o As Secondary)
+			Me.I = i
+			Me.Secondary = o
+		End Sub
+		Public Secondary As Secondary
+		Public I As Integer = 0
+	End Class
 
-		'Dim R As Func(Of String) = Function() Console.ReadLine
+	'Dim R As Func(Of String) = Function() Console.ReadLine
 
-		<Serializable> Class Identifier
-			Public name As String
-			Sub New(idname As String)
-				name = idname
-			End Sub
-		End Class
+	<Serializable> Class Identifier
+		Public name As String
+		Sub New(idname As String)
+			name = idname
+		End Sub
+	End Class
 
-		<Serializable> Class Secondary
-			Inherits List(Of Object)
-			'		Implements ICloneable
-			Sub New()
-				MyBase.New
-			End Sub
-			Sub New(ByVal sec As IEnumerable)
-				MyBase.New(sec)
-			End Sub
+	<Serializable> Class Secondary
+		Inherits List(Of Object)
+		'		Implements ICloneable
+		Sub New()
+			MyBase.New
+		End Sub
+		Sub New(ByVal sec As IEnumerable)
+			MyBase.New(sec)
+		End Sub
 
 
-			Shared Shadows Operator +(ByVal a As Secondary, ByVal b As Secondary) As Secondary
-				Dim foo As New Secondary
-				foo.AddRange(a)
-				foo.AddRange(b)
+		Shared Shadows Operator +(ByVal a As Secondary, ByVal b As Secondary) As Secondary
+			Dim foo As New Secondary
+			foo.AddRange(a)
+			foo.AddRange(b)
 
-				Return foo
-			End Operator
-		End Class
+			Return foo
+		End Operator
+	End Class
 
-		<Serializable> Class Algebraic
-			Inherits Secondary
-		End Class
+	<Serializable> Class Algebraic
+		Inherits Secondary
+	End Class
 
 	'<Serializable> Structure Word
 	'	Public Identifier As String
@@ -552,240 +550,240 @@ Public Enum Tok
 
 
 	Sub DispReturnStack()
-			W("return stack:")
-			If RS.Count = 0 Then
-				W("empty")
-			Else
-				For i As Integer = DS.Count - 1 To 0
-					W(i & ": " & ToStr(RS(i)))
-				Next
-			End If
-		End Sub
-
-		Function ToStr(ob As Object) As String
-			ToStr = ""
-			If ob Is Nothing Then
-				ToStr = "<nothing>"
-			ElseIf TypeOf ob Is Secondary Then
-				ToStr = words.FirstOrDefault(Function(o) o.Value.Equals(ob)).Key
-				If ToStr = "" Then ToStr = DirectCast(ob, Secondary).Aggregate(":: ", Function(a, b) a & ToStr(b) & " ", Function(c) c & ";")
-			ElseIf TypeOf ob Is String Then
-				ToStr = "$ "
-				Dim escaped As Boolean = False
-				Dim in_str As String = ob
-				Dim out_str As String = in_str
-				'Dim escaped_char As Char = vbNullChar
-				For Each c As Char In escapes.Keys
-					'escaped_char = in_str.Contains(c) 'FirstOrDefault(Function(cc) cc.Value = c).Key
-					If in_str.Contains(escapes(c)) Then
-						escaped = True
-						out_str = out_str.Replace(escapes(c), "\" & c)
-					End If
-				Next
-				If escaped OrElse out_str.Contains(" "c) Then ToStr &= """"c & out_str & """"c Else ToStr &= out_str
-			ElseIf TypeOf ob Is List(Of Object) Then
-				'ElseIf GetType(IList).IsAssignableFrom(ob.GetType) Then
-				Dim l As List(Of Object) = DirectCast(ob, List(Of Object))
-				If l.Count > 10 Then
-					ToStr = l.Take(10).Aggregate("{ ", Function(a, b) a & ToStr(b) & " ", Function(c) c & "(+ " & l.Count - 10 & " more)}")
-				Else
-					ToStr = l.Aggregate("{ ", Function(a, b) a & ToStr(b) & " ", Function(c) c & "}")
-				End If
-			ElseIf TypeOf ob Is StackFrame Then
-				Dim sf As StackFrame = DirectCast(ob, StackFrame)
-				ToStr = ToStr(sf.Secondary) & ", " & sf.I & " (" & ToStr(sf.Secondary(sf.I))
-			ElseIf ob.GetType.BaseType Is GetType(MulticastDelegate) Then
-				Dim k As String = words.FirstOrDefault(Function(o) o.Value.Equals(ob)).Key
-				If k.Length > 0 Then ToStr = k Else ToStr = "External"
-			ElseIf TypeOf ob Is Integer Then
-				ToStr = "# " & ob.ToString
-			ElseIf TypeOf ob Is Single Then
-				ToStr = "% " & ob.ToString
-			ElseIf TypeOf ob Is MethodInfo Then
-				ToStr = DirectCast(ob, MethodInfo).ToString
-			ElseIf TypeOf ob Is Double Then
-				ToStr = "%% " & ob.ToString
-			ElseIf TypeOf ob Is Identifier Then
-				ToStr = "id " & DirectCast(ob, Identifier).name
-			ElseIf TypeOf ob Is Bitmap Then
-				ToStr = "Bitmap " & DirectCast(ob, Image).Width & " x " & DirectCast(ob, Image).Height
-			ElseIf TypeOf ob Is Array Then
-				Dim a As Array = DirectCast(ob, Array)
-				ToStr = "[ "
-				If a.Length > 0 Then
-					For i As Integer = 0 To a.Length - 1
-						ToStr &= ToStr(a(i)) & " "
-					Next
-				End If
-				ToStr &= "]"
-			Else
-				ToStr = ob.ToString & " <" & ob.GetType.Name & ">"
-			End If
-		End Function
-
-		Dim stepping As Boolean = False
-
-		Sub Eval(p0 As Object)
-			Dim t As Type = p0.GetType
-			If t.BaseType Is GetType(MulticastDelegate) Then
-				DirectCast(p0, MulticastDelegate).DynamicInvoke()
-			ElseIf t = GetType(Secondary) Then
-				Dim seco As Secondary = DirectCast(p0, Secondary)
-				If seco.Count = 0 Then Exit Sub
-				RS.Push(New StackFrame(0, seco))
-				Dim currentStackFrame As StackFrame = RS.Peek
-				Dim O As Object
-				Do
-					O = currentStackFrame.Secondary(currentStackFrame.I)
-					currentStackFrame.I += 1
-					Eval(O)
-				Loop While currentStackFrame.I < currentStackFrame.Secondary.Count
-				RS.Pop()
-			ElseIf t = GetType(DynamicMethod) Then
-				Stop
-			ElseIf t = GetType(Identifier) Then
-				Eval(vars(DirectCast(p0, Identifier).name))
-			Else
-				DS.Push(p0)
-			End If
-		End Sub
-
-		Function WhatIs(s As String) As Tok
-			WhatIs = Tok.none
-			If words.ContainsKey(s) Then Return Tok.word
-			If delims.ContainsKey(s) Then Return delims(s)
-		End Function
-
-		Sub AppendToTopLevel(ob As Object)
-			If st.Count > 0 Then
-				If TypeOf st.Peek Is Secondary Then DirectCast(st.Peek, Secondary).Add(ob) Else DirectCast(st.Peek, List(Of Object)).Add(ob)
-			End If
-		End Sub
-
-		Dim st As Stack(Of Object)
-
-		Function Split(s As String) As List(Of String)
-			Split = New List(Of String)
-			Dim current_token As String = ""
-			Dim t As Lex = Lex.white
-			For Each c As Char In s
-				Select Case t
-					Case Lex.white
-						If """"c = c Then
-							t = Lex.cstri
-							current_token = ""
-						ElseIf c = "`"c Then
-							t = Lex.comme
-						ElseIf Not Char.IsWhiteSpace(c) Then
-							t = Lex.token
-							current_token = c
-						End If
-					Case Lex.token
-						If Char.IsWhiteSpace(c) Then
-							Split.Add(current_token)
-							current_token = ""
-							t = Lex.white
-						Else
-							current_token &= c
-						End If
-					Case Lex.cstri
-						If "\"c = c Then
-							t = Lex.escap
-						ElseIf """"c = c Then
-							Split.Add(current_token)
-							t = Lex.white
-						Else
-							current_token &= c
-						End If
-					Case Lex.escap
-						If escapes.ContainsKey(c) Then
-							current_token &= escapes(c)
-							t = Lex.cstri
-						Else
-							Throw New Exception("bad escape char '" & c & "'")
-						End If
-					Case Lex.comme
-						If c = vbLf OrElse c = vbCr Then t = Lex.white
-				End Select
+		W("return stack:")
+		If RS.Count = 0 Then
+			W("empty")
+		Else
+			For i As Integer = DS.Count - 1 To 0
+				W(i & ": " & ToStr(RS(i)))
 			Next
-			Select Case t
-				Case Lex.cstri, Lex.escap
-					Throw New Exception("badly terminated string & '" & current_token & "'")
-				Case Lex.token
-					Split.Add(current_token)
-			End Select
-		End Function
+		End If
+	End Sub
 
-
-		Function Parse(src As String) As Secondary
-			Parse = New Secondary()
-			Dim tokens As List(Of String) = Split(src)
-			st = New Stack(Of Object)
-			If tokens.Count > 0 Then
-				Dim pos As Integer = 0
-				st.Push(Parse)
-				Dim expect As Tok = Tok.none
-				Try
-					While pos < tokens.Count
-						If expect <> Tok.none Then
-							Try
-								Dim o As Object
-								If expect = Tok.delim_cstring Then
-									o = tokens(pos)
-								ElseIf expect = Tok.delim_identifier Then
-									o = New Identifier(tokens(pos))
-								Else
-									o = CTypeDynamic(tokens(pos), types(expect))
-								End If
-								If o Is Nothing Then Throw New Exception()
-								AppendToTopLevel(o)
-							Catch ex As Exception
-								Throw New Exception("can Not represent a " & types(expect).ToString)
-							End Try
-							expect = Tok.none
-						Else
-							Dim wi As Tok = WhatIs(tokens(pos))
-							Select Case wi
-								Case Tok.CurlyOpen
-									st.Push(New List(Of Object))
-								Case Tok.SecondaryOpen
-									st.Push(New Secondary)
-								Case Tok.CurlyClose
-									If TypeOf st.Peek IsNot List(Of Object) Then Throw New Exception("mismatched list")
-									AppendToTopLevel(st.Pop)
-								Case Tok.SecondaryClose
-									If TypeOf st.Peek IsNot Secondary Then Throw New Exception("mismatched secondary")
-									AppendToTopLevel(st.Pop)
-								Case Tok.BracketOpen
-								Case Tok.BracketClose
-							'	If TypeOf st.Peek IsNot Array Then Throw New Exception("mismatched array")
-								Case Tok.ParenOpen
-								Case Tok.ParenClose
-								Case Tok.delim_bint, Tok.delim_single, Tok.delim_double, Tok.delim_cstring, Tok.delim_identifier
-									expect = wi
-								Case Tok.word
-									AppendToTopLevel(words(tokens(pos)))
-								Case Tok.none
-									AppendToTopLevel(New Identifier(tokens(pos)))
-							End Select
-						End If
-						pos += 1
-					End While
-
-					If st.Count = 0 Then
-						Throw New Exception("something went terribly wrong")
-					ElseIf st.Count > 1 Then
-						Dim resp As String = ""
-						Do
-							resp &= ToStr(st.Pop) & vbNewLine
-						Loop While st.Count > 0
-						Throw New Exception(resp)
-					End If
-				Catch ex As Exception
-					W(tokens(pos) & "(" & pos & ") " & ex.Message)
-				End Try
+	Function ToStr(ob As Object) As String
+		ToStr = ""
+		If ob Is Nothing Then
+			ToStr = "<nothing>"
+		ElseIf TypeOf ob Is Secondary Then
+			ToStr = words.FirstOrDefault(Function(o) o.Value.Equals(ob)).Key
+			If ToStr = "" Then ToStr = DirectCast(ob, Secondary).Aggregate(":: ", Function(a, b) a & ToStr(b) & " ", Function(c) c & ";")
+		ElseIf TypeOf ob Is String Then
+			ToStr = "$ "
+			Dim escaped As Boolean = False
+			Dim in_str As String = ob
+			Dim out_str As String = in_str
+			'Dim escaped_char As Char = vbNullChar
+			For Each c As Char In escapes.Keys
+				'escaped_char = in_str.Contains(c) 'FirstOrDefault(Function(cc) cc.Value = c).Key
+				If in_str.Contains(escapes(c)) Then
+					escaped = True
+					out_str = out_str.Replace(escapes(c), "\" & c)
+				End If
+			Next
+			If escaped OrElse out_str.Contains(" "c) Then ToStr &= """"c & out_str & """"c Else ToStr &= out_str
+		ElseIf TypeOf ob Is List(Of Object) Then
+			'ElseIf GetType(IList).IsAssignableFrom(ob.GetType) Then
+			Dim l As List(Of Object) = DirectCast(ob, List(Of Object))
+			If l.Count > 10 Then
+				ToStr = l.Take(10).Aggregate("{ ", Function(a, b) a & ToStr(b) & " ", Function(c) c & "(+ " & l.Count - 10 & " more)}")
+			Else
+				ToStr = l.Aggregate("{ ", Function(a, b) a & ToStr(b) & " ", Function(c) c & "}")
 			End If
-		End Function
+		ElseIf TypeOf ob Is StackFrame Then
+			Dim sf As StackFrame = DirectCast(ob, StackFrame)
+			ToStr = ToStr(sf.Secondary) & ", " & sf.I & " (" & ToStr(sf.Secondary(sf.I))
+		ElseIf ob.GetType.BaseType Is GetType(MulticastDelegate) Then
+			Dim k As String = words.FirstOrDefault(Function(o) o.Value.Equals(ob)).Key
+			If k.Length > 0 Then ToStr = k Else ToStr = "External"
+		ElseIf TypeOf ob Is Integer Then
+			ToStr = "# " & ob.ToString
+		ElseIf TypeOf ob Is Single Then
+			ToStr = "% " & ob.ToString
+		ElseIf TypeOf ob Is MethodInfo Then
+			ToStr = DirectCast(ob, MethodInfo).ToString
+		ElseIf TypeOf ob Is Double Then
+			ToStr = "%% " & ob.ToString
+		ElseIf TypeOf ob Is Identifier Then
+			ToStr = "id " & DirectCast(ob, Identifier).name
+		ElseIf TypeOf ob Is Bitmap Then
+			ToStr = "Bitmap " & DirectCast(ob, Image).Width & " x " & DirectCast(ob, Image).Height
+		ElseIf TypeOf ob Is Array Then
+			Dim a As Array = DirectCast(ob, Array)
+			ToStr = "[ "
+			If a.Length > 0 Then
+				For i As Integer = 0 To a.Length - 1
+					ToStr &= ToStr(a(i)) & " "
+				Next
+			End If
+			ToStr &= "]"
+		Else
+			ToStr = ob.ToString & " <" & ob.GetType.Name & ">"
+		End If
+	End Function
 
-		Public W As Action(Of String) = Sub(s) Debug.WriteLine(s)
-	End Class
+	Dim stepping As Boolean = False
+
+	Sub Eval(p0 As Object)
+		Dim t As Type = p0.GetType
+		If t.BaseType Is GetType(MulticastDelegate) Then
+			DirectCast(p0, MulticastDelegate).DynamicInvoke()
+		ElseIf t = GetType(Secondary) Then
+			Dim seco As Secondary = DirectCast(p0, Secondary)
+			If seco.Count = 0 Then Exit Sub
+			RS.Push(New StackFrame(0, seco))
+			Dim currentStackFrame As StackFrame = RS.Peek
+			Dim O As Object
+			Do
+				O = currentStackFrame.Secondary(currentStackFrame.I)
+				currentStackFrame.I += 1
+				Eval(O)
+			Loop While currentStackFrame.I < currentStackFrame.Secondary.Count
+			RS.Pop()
+		ElseIf t = GetType(DynamicMethod) Then
+			Stop
+		ElseIf t = GetType(Identifier) Then
+			Eval(vars(DirectCast(p0, Identifier).name))
+		Else
+			DS.Push(p0)
+		End If
+	End Sub
+
+	Function WhatIs(s As String) As Tok
+		WhatIs = Tok.none
+		If words.ContainsKey(s) Then Return Tok.word
+		If delims.ContainsKey(s) Then Return delims(s)
+	End Function
+
+	Sub AppendToTopLevel(ob As Object)
+		If st.Count > 0 Then
+			If TypeOf st.Peek Is Secondary Then DirectCast(st.Peek, Secondary).Add(ob) Else DirectCast(st.Peek, List(Of Object)).Add(ob)
+		End If
+	End Sub
+
+	Dim st As Stack(Of Object)
+
+	Function Split(s As String) As List(Of String)
+		Split = New List(Of String)
+		Dim current_token As String = ""
+		Dim t As Lex = Lex.white
+		For Each c As Char In s
+			Select Case t
+				Case Lex.white
+					If """"c = c Then
+						t = Lex.cstri
+						current_token = ""
+					ElseIf c = "`"c Then
+						t = Lex.comme
+					ElseIf Not Char.IsWhiteSpace(c) Then
+						t = Lex.token
+						current_token = c
+					End If
+				Case Lex.token
+					If Char.IsWhiteSpace(c) Then
+						Split.Add(current_token)
+						current_token = ""
+						t = Lex.white
+					Else
+						current_token &= c
+					End If
+				Case Lex.cstri
+					If "\"c = c Then
+						t = Lex.escap
+					ElseIf """"c = c Then
+						Split.Add(current_token)
+						t = Lex.white
+					Else
+						current_token &= c
+					End If
+				Case Lex.escap
+					If escapes.ContainsKey(c) Then
+						current_token &= escapes(c)
+						t = Lex.cstri
+					Else
+						Throw New Exception("bad escape char '" & c & "'")
+					End If
+				Case Lex.comme
+					If c = vbLf OrElse c = vbCr Then t = Lex.white
+			End Select
+		Next
+		Select Case t
+			Case Lex.cstri, Lex.escap
+				Throw New Exception("badly terminated string & '" & current_token & "'")
+			Case Lex.token
+				Split.Add(current_token)
+		End Select
+	End Function
+
+
+	Function Parse(src As String) As Secondary
+		Parse = New Secondary()
+		Dim tokens As List(Of String) = Split(src)
+		st = New Stack(Of Object)
+		If tokens.Count > 0 Then
+			Dim pos As Integer = 0
+			st.Push(Parse)
+			Dim expect As Tok = Tok.none
+			Try
+				While pos < tokens.Count
+					If expect <> Tok.none Then
+						Try
+							Dim o As Object
+							If expect = Tok.delim_cstring Then
+								o = tokens(pos)
+							ElseIf expect = Tok.delim_identifier Then
+								o = New Identifier(tokens(pos))
+							Else
+								o = CTypeDynamic(tokens(pos), types(expect))
+							End If
+							If o Is Nothing Then Throw New Exception()
+							AppendToTopLevel(o)
+						Catch ex As Exception
+							Throw New Exception("can Not represent a " & types(expect).ToString)
+						End Try
+						expect = Tok.none
+					Else
+						Dim wi As Tok = WhatIs(tokens(pos))
+						Select Case wi
+							Case Tok.CurlyOpen
+								st.Push(New List(Of Object))
+							Case Tok.SecondaryOpen
+								st.Push(New Secondary)
+							Case Tok.CurlyClose
+								If TypeOf st.Peek IsNot List(Of Object) Then Throw New Exception("mismatched list")
+								AppendToTopLevel(st.Pop)
+							Case Tok.SecondaryClose
+								If TypeOf st.Peek IsNot Secondary Then Throw New Exception("mismatched secondary")
+								AppendToTopLevel(st.Pop)
+							Case Tok.BracketOpen
+							Case Tok.BracketClose
+							'	If TypeOf st.Peek IsNot Array Then Throw New Exception("mismatched array")
+							Case Tok.ParenOpen
+							Case Tok.ParenClose
+							Case Tok.delim_bint, Tok.delim_single, Tok.delim_double, Tok.delim_cstring, Tok.delim_identifier
+								expect = wi
+							Case Tok.word
+								AppendToTopLevel(words(tokens(pos)))
+							Case Tok.none
+								AppendToTopLevel(New Identifier(tokens(pos)))
+						End Select
+					End If
+					pos += 1
+				End While
+
+				If st.Count = 0 Then
+					Throw New Exception("something went terribly wrong")
+				ElseIf st.Count > 1 Then
+					Dim resp As String = ""
+					Do
+						resp &= ToStr(st.Pop) & vbNewLine
+					Loop While st.Count > 0
+					Throw New Exception(resp)
+				End If
+			Catch ex As Exception
+				W(tokens(pos) & "(" & pos & ") " & ex.Message)
+			End Try
+		End If
+	End Function
+
+	Public W As Action(Of String) = Sub(s) Debug.WriteLine(s)
+End Class
