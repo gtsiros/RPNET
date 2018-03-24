@@ -1,4 +1,5 @@
 ﻿Imports System.IO
+Imports System.IO.Compression
 Imports System.Reflection
 Imports System.Reflection.Emit
 Imports System.Runtime.Serialization
@@ -26,6 +27,7 @@ Public Enum Tok
     delim_double
     delim_cstring
     delim_identifier
+    type
     none
 End Enum
 
@@ -123,8 +125,8 @@ Public Class RpNetLib
     End Class
 
     <Serializable> Class Secondary
-        Inherits List(Of Object)
-        '		Implements ICloneable
+        Inherits List(Of Object) ' i have no idea what i am doing. basically i want the same thing as a List(of Object) but with a different name. 
+        'Implements ICloneable 
         Sub New()
             MyBase.New
         End Sub
@@ -157,7 +159,8 @@ Public Class RpNetLib
 
 
     Dim words As New Dictionary(Of String, Object) From { '$ system.io.directory totype { } $ GetCurrentDirectory @
-        {"=", Sub() DS.Push(DS.Pop.Equals(DS.Pop))}, ' most of these are quick and dirty assignments to corresponding operators in vb/.net
+        {"same", Sub() DS.Push(DS.Pop.Equals(DS.Pop))}, ' most of these are quick and dirty assignments to corresponding operators in vb/.net
+        {"==", Sub() DS.Push(DS.Pop = DS.Pop)},
         {"?i", Sub() DS.Push(loops.Peek)}, 'gets the topmost loop counter value
         {"{}", New List(Of Object)}, 'pushes a new empty list
         {"?n", Sub() DS.Push(loops(DirectCast(DS.Pop, Integer)))}, 'gets an inner loop counter
@@ -175,6 +178,7 @@ Public Class RpNetLib
         {"false", False}, ' -> false
         {"import", Sub() DS.Push(Assembly.Load(DirectCast(DS.Pop, String)))}, ' can be done with reflection, too
         {"load", Sub() DS.Push(Assembly.LoadFile(Directory.GetCurrentDirectory() & "\" & DirectCast(DS.Pop, String)))}, ' this one too
+        {"null", Sub() DS.Push(Nothing)},
         {"num", Sub() DS.Push(Asc(DirectCast(DS.Pop, Char)))}, ' maybe i should just add a 'cast' word that converts from type to type
         {"over", Sub() DS.Push(DS(1))},
         {"print", Sub() W(ToStr(DS.Pop()))},
@@ -185,13 +189,14 @@ Public Class RpNetLib
         {"strto", Sub() DS.Push(Parse(DirectCast(DS.Pop, String)))},
         {"swap", Sub() DS.Swap()},
         {"tostr", Sub() DS.Push(ToStr(DS.Pop))}, '$ io.file totype { $ ..\..\extrawords.txt } $ ReadAllText @ strto eval
+        {"totype", Sub() DS.Push(ToType(DirectCast(DS.Pop, String)))},
         {"throw", Sub() Throw New Exception(DirectCast(DS.Pop, String))}, '  -> true
         {"true", True}, '  -> true
         {"vars", Sub() DS.Push(Array.ConvertAll(vars.Keys.ToArray, Function(k) New Identifier(k)).Cast(Of Object).ToList())},
         {"words", Sub() DS.Push(words.Values.ToList)},
-        {"ift", Sub() If DS(1) Then Eval(DS.Pop) Else DS.Pop()},
+        {"ift", Sub() If DirectCast(DS(1), Boolean) Then Eval(DS.Pop) Else DS.Pop()},
         {"[]n", Sub() ' ob.1 ... ob.n n -> array(ob1...obn)
-                    If DS.Count - 1 < DS.Peek Then Throw New ArgumentException("bad argument count")
+                    If DS.Count - 1 < DirectCast(DS.Peek, Integer) Then Throw New ArgumentException("bad argument count")
                     Dim new_array As Array = DS.Skip(1).Take(DirectCast(DS.Pop, Integer)).Reverse.ToArray
                     Eval(words("ndrop"))
                     DS.Push(new_array)
@@ -200,9 +205,12 @@ Public Class RpNetLib
                     Dim argument_list As List(Of Object)
                     If TypeOf DS.Peek Is List(Of Object) Then argument_list = DirectCast(DS.Pop, List(Of Object)) Else argument_list = New List(Of Object)
                     Dim found_type As Type = Nothing
-                    If TypeOf DS.Peek Is String Then Eval(words("totype"))
-                    If TypeOf DS.Peek Is Type Then found_type = DirectCast(DS.Pop, Type)
-                    If found_type IsNot Nothing Then DS.Push(Activator.CreateInstance(found_type, argument_list.ToArray))
+                    If TypeOf DS.Pop Is String Then
+                        found_type = ToType(DirectCast(DS.Pop, String))
+                    ElseIf TypeOf DS.Peek Is Type Then
+                        found_type = DirectCast(DS.Pop, Type)
+                    End If
+                    If found_type IsNot Nothing Then DS.Push(Activator.CreateInstance(found_type, argument_list.ToArray)) Else Throw New Exception("bad argument")
                 End Sub},
         {"ndrop", Sub()
                       Dim i As Integer = DirectCast(DS.Pop, Integer)
@@ -211,52 +219,40 @@ Public Class RpNetLib
                           i -= 1
                       End While
                   End Sub},
-        {"!", Sub() ' ob str ->
-                  Dim name As Object = DS.Pop
+        {"sto", Sub() ' this is for storing into variables. Will be also used for temporary variables (called labmdas in RPL) later on
+                    Dim id As Identifier = DirectCast(DS.Pop, Identifier)
+                    If vars.ContainsKey(id.name) Then vars(id.name) = DS.Pop Else vars.Add(id.name, DS.Pop)
+                End Sub},
+        {"rcl", Sub() DS.Push(vars(DirectCast(DS.Pop, Identifier).name))}, 'this is for reading from variables. Will be also used for temporary variables (called labmdas in RPL) later on
+        {"put", Sub()
+                    Dim index As Integer = DirectCast(DS.Pop, Integer)
+                    Dim ob As Object = DS.Pop
+                    If TypeOf DS.Peek Is Array Then
+                        DirectCast(DS.Peek, Array).SetValue(ob, index)
+                    ElseIf TypeOf DS.Peek Is List(Of Object) Then ' there should be a better way to do this
+                        Dim l As List(Of Object) = DirectCast(DS.Pop, List(Of Object))
+                        l.RemoveAt(index)
+                        l.Insert(index, ob)
+                    End If
+
+                End Sub},
+        {"get", Sub()
+                    Dim index As Integer = DirectCast(DS.Pop, Integer)
+                    Dim ob As IEnumerable = DirectCast(DS.Pop, IEnumerable)
+                    DS.Push(ob(index))
+                End Sub},
+        {"!", Sub() ' ob2 ob1 str -> ob2. it "bangs" ob1 into the ob2 property named str. leaves ob2 on the stack
+                  Dim name As String = DirectCast(DS.Pop, String)
                   Dim obj As Object = DS.Pop
-                  Dim t As Type = name.GetType
-                  Select Case t
-                      Case GetType(String) ' ob str -> 
-                          CallByName(DS.Peek, DirectCast(name, String), CallType.Set, New Object() {obj})
-                      Case GetType(Identifier) ' ob id -> 
-                          Dim id As String = DirectCast(name, Identifier).name
-                          If vars.ContainsKey(id) Then vars(id) = obj Else vars.Add(id, obj)
-                      Case GetType(Integer) ' ob2 ob1 n -> ob2
-                          Dim collection_type As Type = DS.Peek.GetType
-                          Select Case collection_type
-                              Case GetType(Array)
-                                  DirectCast(DS.Peek, Array).SetValue(DirectCast(name, Integer), obj)
-                              Case GetType(List(Of Object))
-                                  Dim l As List(Of Object) = DirectCast(DS.Peek, List(Of Object))
-                                  l.RemoveAt(name)
-                                  l.Insert(name, obj)
-                              Case GetType(Secondary)
-                                  Dim s As Secondary = DS.Peek
-                                  s.RemoveAt(name)
-                                  s.Insert(name, obj)
-                          End Select
-                  End Select
+                  CallByName(DS.Peek, DirectCast(name, String), CallType.Set, New Object() {obj})
               End Sub},
-        {"?", Sub()
-                  Dim t As Type = DS.Peek.GetType
-                  Select Case t
-                      Case GetType(Secondary)
-                          DS.Push(New Secondary(DirectCast(DS.Pop, Secondary)))
-                      Case GetType(String)
-                          Dim pname As String = DS.Pop
-                          Dim ob_type As Type
-                          If TypeOf DS.Peek Is Type Then ob_type = DirectCast(DS.Peek, Type) Else ob_type = DS.Peek.GetType
-                          DS.Push(ob_type.GetProperty(pname).GetValue(DS.Pop))
-                      Case GetType(Identifier)
-                          Dim id As Identifier = DS.Pop
-                          If vars.ContainsKey(id.name) Then DS.Push(vars(id.name)) Else DS.Push(Nothing)
-                      Case GetType(Integer)
-                          Dim i As Integer = DS.Pop
-                          DS.Push(DirectCast(DS.Pop, IEnumerable)(i))
-                  End Select
+        {"?", Sub() ' obA str - > obB, gets the property value named str of object obA 
+                  Dim pname As String = DirectCast(DS.Pop, String)
+                  Dim ob As Object = DS.Pop
+                  DS.Push(ob.GetType.GetProperty(pname).GetValue(ob))
               End Sub},
         {"@", Sub() ' change so that it does not check if type. otherwise can't call GetEvent etc
-                  Dim method_name As String = DS.Pop
+                  Dim method_name As String = DirectCast(DS.Pop, String)
                   Dim argument_list As List(Of Object) = DS.Pop
                   Dim ob As Object = DS.Pop
                   Dim argument_array() As Object = argument_list.ToArray
@@ -329,7 +325,7 @@ Public Class RpNetLib
                                    deps.Add(asms(asmname).Fullname, Array.ConvertAll(asm.GetTypes(), Function(a) a.FullName).ToList)
                                    i += 1
                                    If sw.ElapsedMilliseconds > 1000 Then
-                                       Debug.WriteLine(Math.Round(i / total * 100.0, 2) & " %")
+                                       W(Math.Round(i / total * 100.0, 2) & " %")
                                        sw.Restart()
                                    End If
                                Loop While i < total
@@ -341,20 +337,10 @@ Public Class RpNetLib
 
                        Dim aFormatter As IFormatter = New BinaryFormatter
                        File.Delete("../test.bin")
-                       Dim aStream As Stream = New FileStream("../test.bin", FileMode.Create, FileAccess.Write, FileShare.None)
-                       aFormatter.Serialize(aStream, deps)
-                       aStream.Close()
-                   End Sub},
-        {"totype", Sub()
-                       Dim wantedTypeName As String = DirectCast(DS.Peek, String).ToLower
-                       For Each one In deps.Keys
-                           Dim iot As Integer = deps(one).FindIndex(Function(l) l.ToLower.EndsWith(wantedTypeName))
-                           If iot < 0 Then Continue For
-                           DS.Pop()
-                           DS.Push(Assembly.Load(one).GetType(deps(one)(iot)))
-                           Exit Sub
-                       Next
-                       W("no such type")
+                       Using aStream As Stream = New FileStream("../test.bin", FileMode.Create, FileAccess.Write, FileShare.None),
+                         gz As New GZipStream(aStream, CompressionLevel.Optimal)
+                           aFormatter.Serialize(gz, deps)
+                       End Using
                    End Sub},
         {"findtypes", Sub()
                           Dim wantedTypeName As String = DirectCast(DS.Pop, String).ToLower
@@ -565,10 +551,19 @@ Public Class RpNetLib
         End If
     End Sub
 
+    Function ToType(s As String) As Type
+        Dim wantedTypeName As String = s.ToLower
+        ToType = Nothing
+        For Each one In deps.Keys
+            Dim iot As Integer = deps(one).FindIndex(Function(l) l.ToLower.EndsWith(wantedTypeName))
+            If iot >= 0 Then Return Assembly.Load(one).GetType(deps(one)(iot))
+        Next
+    End Function
+
     Function ToStr(ob As Object) As String
         ToStr = ""
         If ob Is Nothing Then
-            ToStr = "<nothing>"
+            ToStr = "null"
         ElseIf TypeOf ob Is Secondary Then
             ToStr = words.FirstOrDefault(Function(o) o.Value.Equals(ob)).Key
             If ToStr = "" Then ToStr = DirectCast(ob, Secondary).Aggregate(":: ", Function(a, b) a & ToStr(b) & " ", Function(c) c & ";")
@@ -621,14 +616,17 @@ Public Class RpNetLib
                 Next
             End If
             ToStr &= "]"
+        ElseIf TypeOf ob Is Type Then
+            ToStr = "<" & DirectCast(ob, Type).FullName & ">"
         Else
             ToStr = ob.ToString & " <" & ob.GetType.Name & ">"
         End If
     End Function
 
-    Dim stepping As Boolean = False
+    Dim stepping As Boolean = False ' here i tried to make a step-by-step execution thingie. i failed.
 
     Sub Eval(p0 As Object)
+        If p0 Is Nothing Then Exit Sub
         Dim t As Type = p0.GetType
         If t.BaseType Is GetType(MulticastDelegate) Then
             DirectCast(p0, MulticastDelegate).DynamicInvoke()
@@ -647,25 +645,29 @@ Public Class RpNetLib
         ElseIf t = GetType(DynamicMethod) Then
             Stop
         ElseIf t = GetType(Identifier) Then
-            Eval(vars(DirectCast(p0, Identifier).name))
+            If vars.ContainsKey(DirectCast(p0, Identifier).name) Then Eval(vars(DirectCast(p0, Identifier).name)) Else DS.Push(p0)
         Else
             DS.Push(p0)
         End If
     End Sub
 
-    Function WhatIs(s As String) As Tok
-        WhatIs = Tok.none
+    Function TokenType(s As String) As Tok
+        TokenType = Tok.none
         If words.ContainsKey(s) Then Return Tok.word
         If delims.ContainsKey(s) Then Return delims(s)
+        If s(0) = "<"c AndAlso s.EndsWith(">"c) Then Return Tok.type
     End Function
 
-    Sub AppendToTopLevel(ob As Object)
-        If st.Count > 0 Then
-            If TypeOf st.Peek Is Secondary Then DirectCast(st.Peek, Secondary).Add(ob) Else DirectCast(st.Peek, List(Of Object)).Add(ob)
+    Sub New()
+        If File.Exists("../test.bin") Then
+            Dim aFormatter As IFormatter = New BinaryFormatter
+            Using aStream As Stream = New FileStream("../test.bin", FileMode.Open, FileAccess.Read, FileShare.Read),
+                    ugz As New GZipStream(aStream, CompressionMode.Decompress)
+                deps = DirectCast(aFormatter.Deserialize(ugz), Dictionary(Of String, List(Of String)))
+            End Using
         End If
     End Sub
-
-    Dim st As Stack(Of Object)
+    Dim st As Stack(Of IList) 'maybe
 
     Function Split(s As String) As List(Of String)
         Split = New List(Of String)
@@ -723,7 +725,7 @@ Public Class RpNetLib
     Function Parse(src As String) As Secondary
         Parse = New Secondary()
         Dim tokens As List(Of String) = Split(src)
-        st = New Stack(Of Object)
+        st = New Stack(Of IList)
         If tokens.Count > 0 Then
             Dim pos As Integer = 0
             st.Push(Parse)
@@ -741,35 +743,35 @@ Public Class RpNetLib
                                 o = CTypeDynamic(tokens(pos), types(expect))
                             End If
                             If o Is Nothing Then Throw New Exception()
-                            AppendToTopLevel(o)
+                            st.Peek.Add(o)
                         Catch ex As Exception
                             Throw New Exception("can Not represent a " & types(expect).ToString)
                         End Try
                         expect = Tok.none
                     Else
-                        Dim wi As Tok = WhatIs(tokens(pos))
-                        Select Case wi
+                        Dim tt As Tok = TokenType(tokens(pos))
+                        Select Case tt
                             Case Tok.CurlyOpen
                                 st.Push(New List(Of Object))
                             Case Tok.SecondaryOpen
                                 st.Push(New Secondary)
                             Case Tok.CurlyClose
                                 If TypeOf st.Peek IsNot List(Of Object) Then Throw New Exception("mismatched list")
-                                AppendToTopLevel(st.Pop)
+                                Dim ob As Object = st.Pop
+                                st.Peek.Add(ob)
                             Case Tok.SecondaryClose
                                 If TypeOf st.Peek IsNot Secondary Then Throw New Exception("mismatched secondary")
-                                AppendToTopLevel(st.Pop)
-                            Case Tok.BracketOpen
-                            Case Tok.BracketClose
-                            '	If TypeOf st.Peek IsNot Array Then Throw New Exception("mismatched array")
-                            Case Tok.ParenOpen
-                            Case Tok.ParenClose
+                                Dim ob As Object = st.Pop
+                                st.Peek.Add(ob)
+                            Case Tok.BracketOpen, Tok.BracketClose, Tok.ParenOpen, Tok.ParenClose ' this is why i can't parse arrays yet
                             Case Tok.delim_bint, Tok.delim_single, Tok.delim_double, Tok.delim_cstring, Tok.delim_identifier
-                                expect = wi
+                                expect = tt
                             Case Tok.word
-                                AppendToTopLevel(words(tokens(pos)))
+                                st.Peek.Add(words(tokens(pos)))
+                            Case Tok.type
+                                st.Peek.Add(ToType(tokens(pos).Substring(1, tokens(pos).Length - 2)))
                             Case Tok.none
-                                AppendToTopLevel(New Identifier(tokens(pos)))
+                                st.Peek.Add(New Identifier(tokens(pos)))
                         End Select
                     End If
                     pos += 1
@@ -790,5 +792,5 @@ Public Class RpNetLib
         End If
     End Function
 
-    Public W As Action(Of String) = Sub(s) Debug.WriteLine(s)
+    Public W As Action(Of String) = Sub(s) Debug.WriteLine(s) ' so the using program can change it to whatever
 End Class

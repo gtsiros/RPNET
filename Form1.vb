@@ -23,37 +23,9 @@ Public Class Form1
 				Next
 			End If
 		End Sub
-		Sub Main(sender As Object, e As EventArgs) Handles MyBase.Load
-			If File.Exists("../test.bin") Then
-				Dim aFormatter As IFormatter = New BinaryFormatter
-				Dim aStream As Stream = New FileStream("../test.bin", FileMode.Open, FileAccess.Read, FileShare.Read)
-				rpn.deps = DirectCast(aFormatter.Deserialize(aStream), Dictionary(Of String, List(Of String)))
-				aStream.Close()
-				Dim types As Integer = 0
-				Dim n As Long = Now.Ticks
-				For Each a As List(Of String) In rpn.deps.Values
-					types += a.Count
-				Next
-				Dim m As Long = Now.Ticks - n
-				rpn.W("loaded " & rpn.deps.Count & " assemblies, defining " & types & " types in " & (m \ 10000) & " ms")
-			End If
 
-			'Do
-			'	DispDataStack()
-			'	Console.Write("> ")
-			'	Dim cmdLine As String = R().Trim
-			'	Try
-			'		If cmdLine.Length = 0 Then DS.Push(DS.Peek) Else Eval(Parse(":: " & cmdLine & " ;"))
-			'
-			'	Catch ex As Exception
-			'		W(ex.Message)
-			'	End Try
-			'Loop
-			'Dim SecoToString As Func(Of Object, String) = Function(seco) seco.Aggregate(":: ", Function(a, b) a & IIf(TypeOf b Is Secondary, SecoToString(DirectCast(b, List(Of Object))), b.ToString) & " ", Function(c) c & " ;")
-
-		End Sub
-		'Dim W As Action(Of String) = Sub(s) tinf.Text = s
-		Sub Cmd(Optional b As Boolean = True)
+    'Dim W As Action(Of String) = Sub(s) tinf.Text = s
+    Sub Cmd(Optional b As Boolean = True)
 			'	Console.Write("> ")
 			Dim cmdLine As String = tcmd.Text.Trim
 			Try
