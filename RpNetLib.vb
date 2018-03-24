@@ -5,6 +5,7 @@ Imports System.Runtime.Serialization
 Imports System.Runtime.Serialization.Formatters.Binary
 Imports System.Text
 
+
 Public Structure AsmInfo
     Public Fullname As String
     Public version() As Integer
@@ -37,6 +38,10 @@ Public Enum Lex
 End Enum
 
 Public Class RpNetLib
+
+    ' change this to where gacutil.exe is 
+    Const gacutil_path As String = "C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.7.1 Tools\gacutil.exe"
+
     Public Shared Function Higher(ByRef a() As Integer, ByRef b() As Integer) As Boolean
         Higher = False
         Dim undecided As Boolean = False
@@ -275,7 +280,7 @@ Public Class RpNetLib
                  End Sub},
         {"reinit", Sub()
                        Dim asmlist As New List(Of String)
-                       Dim pi As New ProcessStartInfo("C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.6.1 Tools\gacutil.exe", "-l") With {
+                       Dim pi As New ProcessStartInfo(gacutil_path, "-l") With {
                                     .CreateNoWindow = True,
                                     .WindowStyle = ProcessWindowStyle.Hidden,
                                     .UseShellExecute = False,
