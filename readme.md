@@ -1,4 +1,6 @@
-git is horrible
+note1: git is horrible  
+note2: still figuring out how to do stuff with git
+note3: first thing you do once you get it to build is write **reinit** in the textbox and press *shift+enter*. If it doesn't work, you can try changing *gacutil_path* in rpnetlib.vb
 
 # RPNET
 rpn system based around .net
