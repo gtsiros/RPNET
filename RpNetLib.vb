@@ -157,25 +157,25 @@ Public Class RpNetLib
 
 
     Dim words As New Dictionary(Of String, Object) From { '$ system.io.directory totype { } $ GetCurrentDirectory @
-        {"=", Sub() DS.Push(DS.Pop.Equals(DS.Pop))},
-        {"?i", Sub() DS.Push(loops.Peek)},
-        {"{}", New List(Of Object)},
-        {"?n", Sub() DS.Push(loops(DirectCast(DS.Pop, Integer)))}, '{"[]", Sub() DS.Push(Array.CreateInstance(DS.Pop, 0))}, ' can be done in phase 2
-        {"or", Sub() DS.Push(DS.Pop Or DS.Pop)},
+        {"=", Sub() DS.Push(DS.Pop.Equals(DS.Pop))}, ' most of these are quick and dirty assignments to corresponding operators in vb/.net
+        {"?i", Sub() DS.Push(loops.Peek)}, 'gets the topmost loop counter value
+        {"{}", New List(Of Object)}, 'pushes a new empty list
+        {"?n", Sub() DS.Push(loops(DirectCast(DS.Pop, Integer)))}, 'gets an inner loop counter
+        {"or", Sub() DS.Push(DS.Pop Or DS.Pop)}, ' these three are q.n.d. assignments, too
         {"not", Sub() DS.Push(Not DS.Pop)},
         {"xor", Sub() DS.Push(DS.Pop Xor DS.Pop)},
         {"clear", Sub() DS.Clear()},
         {"depth", Sub() DS.Push(DS.Count)},
-        {"dir", Sub() DS.Push(Directory.EnumerateFiles(Directory.GetCurrentDirectory).ToList.ConvertAll(Function(s) DirectCast(s, Object)))},
+        {"dir", Sub() DS.Push(Directory.EnumerateFiles(Directory.GetCurrentDirectory).ToList.ConvertAll(Function(s) DirectCast(s, Object)))}, ' can be done via reflection too
         {"drop", Sub() DS.Pop()},
         {"dup", Sub() DS.Push(DS.Peek)},
-        {"end", Sub() Stop},
+        {"end", Sub() End},
         {"errorout", Sub() Throw New Exception(DirectCast(DS.Pop, String))},
         {"eval", Sub() Eval(DS.Pop)},
-        {"false", False}, ' -> true
-        {"import", Sub() DS.Push(Assembly.Load(DirectCast(DS.Pop, String)))}, 'DS.Push(asm.GetTypes.ToList.ConvertAll(Of Object)(Function(a) CType(a, Object)))
-        {"load", Sub() DS.Push(Assembly.LoadFile(Directory.GetCurrentDirectory() & "\" & DirectCast(DS.Pop, String)))},
-        {"num", Sub() DS.Push(Asc(DirectCast(DS.Pop, Char)))},
+        {"false", False}, ' -> false
+        {"import", Sub() DS.Push(Assembly.Load(DirectCast(DS.Pop, String)))}, ' can be done with reflection, too
+        {"load", Sub() DS.Push(Assembly.LoadFile(Directory.GetCurrentDirectory() & "\" & DirectCast(DS.Pop, String)))}, ' this one too
+        {"num", Sub() DS.Push(Asc(DirectCast(DS.Pop, Char)))}, ' maybe i should just add a 'cast' word that converts from type to type
         {"over", Sub() DS.Push(DS(1))},
         {"print", Sub() W(ToStr(DS.Pop()))},
         {"roll", Sub() DS.Roll(DirectCast(DS.Pop, Integer))},
@@ -272,7 +272,7 @@ Public Class RpNetLib
                   If method_info.ReturnType = GetType(Void) Then Exit Sub
                   If method_info.ReturnType = GetType(Array) AndAlso return_object IsNot Nothing Then DS.Push(New List(Of Object)(DirectCast(return_object, Array))) Else DS.Push(return_object)
               End Sub},
-        {"disp", Sub()
+        {"disp", Sub() 'qnd way to show an image. 
                      Dim f As New Form() With {.FormBorderStyle = FormBorderStyle.SizableToolWindow}
                      Dim p = New PictureBox With {.Dock = DockStyle.Fill, .Image = DS.Pop, .SizeMode = PictureBoxSizeMode.CenterImage}
                      f.Controls.Add(p)
@@ -297,8 +297,8 @@ Public Class RpNetLib
                                    If parts.Length < 2 OrElse Not parts(1).StartsWith("Version") OrElse parts(0).Contains("DirectX") Then Continue While
                                    Dim culture As String = parts.FirstOrDefault(Function(s) s.StartsWith("Culture")).Split("="c)(1)
                                    If culture <> "en" AndAlso culture <> "neutral" Then Continue While
-                                   Dim arch As String = parts.FirstOrDefault(Function(s) s.StartsWith("processor")).Split("="c)(1)
-                                   If arch <> "MSIL" AndAlso arch <> "x86" Then Continue While
+                                   'Dim arch As String = parts.FirstOrDefault(Function(s) s.StartsWith("processor")).Split("="c)(1)
+                                   'If arch <> "MSIL" AndAlso arch <> "x86" Then Continue While
                                    Dim version As String = parts.FirstOrDefault(Function(s) s.StartsWith("Version")).Split("="c)(1)
                                    Dim nums() As Integer = Array.ConvertAll(version.Split("."c), Function(s) Integer.Parse(s))
                                    Dim bAdd As Boolean = True
