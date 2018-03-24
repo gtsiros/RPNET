@@ -1,3 +1,5 @@
+git is horrible
+
 # RPNET
 rpn system based around .net
 # what
