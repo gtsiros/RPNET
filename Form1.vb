@@ -104,12 +104,12 @@ Public Class Form1
 			End Select
 
 		End Sub
-		Sub ToggleOnTop() Handles Me.Click
-			TopMost = Not TopMost
-			BackColor = IIf(TopMost, Color.Black, Color.Gray)
-		End Sub
+	Sub ToggleOnTop() Handles Me.Click
+		TopMost = Not TopMost
+		If TopMost Then BackColor = Color.Black Else BackColor = SystemColors.Control
+	End Sub
 
-		Private Sub HistoryToolStripMenuItem_Click(sender As Object, e As EventArgs) Handles HistoryToolStripMenuItem.Click
+	Private Sub HistoryToolStripMenuItem_Click(sender As Object, e As EventArgs) Handles HistoryToolStripMenuItem.Click
 			tcmd.Text = cmd_history.ToString
 		End Sub
 

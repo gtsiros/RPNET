@@ -157,7 +157,7 @@ Public Enum Tok
 		{"=", Sub() DS.Push(DS.Pop.Equals(DS.Pop))},
 		{"?i", Sub() DS.Push(loops.Peek)},
 		{"{}", New List(Of Object)},
-		{"?n", Sub() DS.Push(loops(DS.Pop))}, '{"[]", Sub() DS.Push(Array.CreateInstance(DS.Pop, 0))}, ' can be done in phase 2
+		{"?n", Sub() DS.Push(loops(DirectCast(DS.Pop, Integer)))}, '{"[]", Sub() DS.Push(Array.CreateInstance(DS.Pop, 0))}, ' can be done in phase 2
 		{"or", Sub() DS.Push(DS.Pop Or DS.Pop)},
 		{"not", Sub() DS.Push(Not DS.Pop)},
 		{"xor", Sub() DS.Push(DS.Pop Xor DS.Pop)},
@@ -166,66 +166,65 @@ Public Enum Tok
 		{"dir", Sub() DS.Push(Directory.EnumerateFiles(Directory.GetCurrentDirectory).ToList.ConvertAll(Function(s) DirectCast(s, Object)))},
 		{"drop", Sub() DS.Pop()},
 		{"dup", Sub() DS.Push(DS.Peek)},
-		{"end", Sub() End},
-		{"errorout", Sub() Throw New Exception(DS.Pop)},
+		{"end", Sub() Stop},
+		{"errorout", Sub() Throw New Exception(DirectCast(DS.Pop, String))},
 		{"eval", Sub() Eval(DS.Pop)},
 		{"false", False}, ' -> true
-		{"import", Sub() DS.Push(Assembly.Load(DS.Pop))}, 'DS.Push(asm.GetTypes.ToList.ConvertAll(Of Object)(Function(a) CType(a, Object)))
+		{"import", Sub() DS.Push(Assembly.Load(DirectCast(DS.Pop, String)))}, 'DS.Push(asm.GetTypes.ToList.ConvertAll(Of Object)(Function(a) CType(a, Object)))
 		{"load", Sub() DS.Push(Assembly.LoadFile(Directory.GetCurrentDirectory() & "\" & DirectCast(DS.Pop, String)))},
-		{"num", Sub() DS.Push(Asc(DS.Pop()))},
+		{"num", Sub() DS.Push(Asc(DirectCast(DS.Pop, Char)))},
 		{"over", Sub() DS.Push(DS(1))},
 		{"print", Sub() W(ToStr(DS.Pop()))},
-		{"roll", Sub() DS.Roll(DS.Pop)},
+		{"roll", Sub() DS.Roll(DirectCast(DS.Pop, Integer))},
 		{"rot", Sub() DS.Rot()},
 		{"self", Sub() DS.Push(Me)},
 		{"stop", Sub() Stop},
-		{"strto", Sub() DS.Push(Parse(DS.Pop))},
+		{"strto", Sub() DS.Push(Parse(DirectCast(DS.Pop, String)))},
 		{"swap", Sub() DS.Swap()},
 		{"tostr", Sub() DS.Push(ToStr(DS.Pop))}, '$ io.file totype { $ ..\..\extrawords.txt } $ ReadAllText @ strto eval
-		{"throw", Sub() Throw New Exception(DS.Pop)}, '  -> true
+		{"throw", Sub() Throw New Exception(DirectCast(DS.Pop, String))}, '  -> true
 		{"true", True}, '  -> true
 		{"vars", Sub() DS.Push(Array.ConvertAll(vars.Keys.ToArray, Function(k) New Identifier(k)).Cast(Of Object).ToList())},
 		{"words", Sub() DS.Push(words.Values.ToList)},
 		{"ift", Sub() If DS(1) Then Eval(DS.Pop) Else DS.Pop()},
 		{"[]n", Sub() ' ob.1 ... ob.n n -> array(ob1...obn)
 					If DS.Count - 1 < DS.Peek Then Throw New ArgumentException("bad argument count")
-					Dim new_array As Array = DS.Skip(1).Take(DS.Peek).Reverse.ToArray
+					Dim new_array As Array = DS.Skip(1).Take(DirectCast(DS.Pop, Integer)).Reverse.ToArray
 					Eval(words("ndrop"))
 					DS.Push(new_array)
 				End Sub},
 		{"new", Sub()
 					Dim argument_list As List(Of Object)
-					If TypeOf DS.Peek Is List(Of Object) Then argument_list = DS.Pop Else argument_list = New List(Of Object)
+					If TypeOf DS.Peek Is List(Of Object) Then argument_list = DirectCast(DS.Pop, List(Of Object)) Else argument_list = New List(Of Object)
 					Dim found_type As Type = Nothing
 					If TypeOf DS.Peek Is String Then Eval(words("totype"))
-					If TypeOf DS.Peek Is Type Then found_type = DS.Pop
+					If TypeOf DS.Peek Is Type Then found_type = DirectCast(DS.Pop, Type)
 					If found_type IsNot Nothing Then DS.Push(Activator.CreateInstance(found_type, argument_list.ToArray))
 				End Sub},
 		{"ndrop", Sub()
-					  Dim i As Integer = DS.Pop
+					  Dim i As Integer = DirectCast(DS.Pop, Integer)
 					  While i > 0
 						  DS.Pop()
 						  i -= 1
 					  End While
 				  End Sub},
-		{"!", Sub() ' ob str -> , ob id ->, ob2 ob1 n -> ob2
+		{"!", Sub() ' ob str ->
 				  Dim name As Object = DS.Pop
 				  Dim obj As Object = DS.Pop
 				  Dim t As Type = name.GetType
 				  Select Case t
 					  Case GetType(String) ' ob str -> 
-						  CallByName(DS.Peek, name, CallType.Set, New Object() {obj})
+						  CallByName(DS.Peek, DirectCast(name, String), CallType.Set, New Object() {obj})
 					  Case GetType(Identifier) ' ob id -> 
 						  Dim id As String = DirectCast(name, Identifier).name
 						  If vars.ContainsKey(id) Then vars(id) = obj Else vars.Add(id, obj)
-					  Case GetType(Integer) ' ob2 ob1 n -> ob1
+					  Case GetType(Integer) ' ob2 ob1 n -> ob2
 						  Dim collection_type As Type = DS.Peek.GetType
 						  Select Case collection_type
 							  Case GetType(Array)
-								  Dim a As Array = DS.Peek
-								  a.SetValue(name, obj)
+								  DirectCast(DS.Peek, Array).SetValue(DirectCast(name, Integer), obj)
 							  Case GetType(List(Of Object))
-								  Dim l As List(Of Object) = DS.Peek
+								  Dim l As List(Of Object) = DirectCast(DS.Peek, List(Of Object))
 								  l.RemoveAt(name)
 								  l.Insert(name, obj)
 							  Case GetType(Secondary)
