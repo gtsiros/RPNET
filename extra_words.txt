@@ -1,0 +1,2 @@
+﻿$ "$ system.io.directory totype {} $ GetCurrentDirectory @" strto $ pwd define
+$ "depth 'r < ' :: $ \"too few arguments\" throw ;  ift " strto $ check define

@@ -1,0 +1,37 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.27130.2036
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{F184B08F-C81C-45F6-A57F-5ABD9991F28F}") = "RPNET", "RPNET.vbproj", "{1D067BB9-35B4-401C-9681-937F3698E02C}"
+EndProject
+Project("{F184B08F-C81C-45F6-A57F-5ABD9991F28F}") = "exception_test", "exception_test\exception_test.vbproj", "{7031DC06-A279-4764-ACD3-0AF31EDD7A4C}"
+EndProject
+Project("{F184B08F-C81C-45F6-A57F-5ABD9991F28F}") = "typefindupdate", "typefindupdate\typefindupdate.vbproj", "{7A9B26B1-577B-415D-8B89-776CD2925EF9}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1D067BB9-35B4-401C-9681-937F3698E02C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1D067BB9-35B4-401C-9681-937F3698E02C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1D067BB9-35B4-401C-9681-937F3698E02C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1D067BB9-35B4-401C-9681-937F3698E02C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7031DC06-A279-4764-ACD3-0AF31EDD7A4C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7031DC06-A279-4764-ACD3-0AF31EDD7A4C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7031DC06-A279-4764-ACD3-0AF31EDD7A4C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7031DC06-A279-4764-ACD3-0AF31EDD7A4C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7A9B26B1-577B-415D-8B89-776CD2925EF9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7A9B26B1-577B-415D-8B89-776CD2925EF9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7A9B26B1-577B-415D-8B89-776CD2925EF9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7A9B26B1-577B-415D-8B89-776CD2925EF9}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {02838EC6-4E9D-4DDB-95F0-B60EE12D64BC}
+	EndGlobalSection
+EndGlobal
