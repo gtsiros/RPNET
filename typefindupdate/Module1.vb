@@ -20,11 +20,12 @@ Module typefindupdate
 
         For Each asm As Assembly In AppDomain.CurrentDomain.GetAssemblies()
             For Each ty As Type In asm.GetTypes
-                If ty.IsEnum OrElse ty.IsClass Then Continue For
-                If Not ty.IsValueType Then Continue For
-                Dim ut As Type = ty.UnderlyingSystemType
-                If Not tl.Contains(ut) Then tl.Add(ut)
-                If ut.FullName.EndsWith("SwitchStructure") Then Stop
+                If Not ty.IsEnum Then Continue For
+                'If ty.IsEnum OrElse ty.IsClass Then Continue For
+                'If Not ty.IsValueType Then Continue For
+                'Dim ut As Type = ty.UnderlyingSystemType
+                'If Not tl.Contains(ut) Then tl.Add(ut)
+                'If ut.FullName.EndsWith("SwitchStructure") Then Stop
             Next
         Next
         ssl.AddRange(tl.ConvertAll(Function(t) t.FullName))

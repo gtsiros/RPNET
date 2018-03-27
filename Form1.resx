@@ -117,6 +117,44 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <data name="tcmd.Text" xml:space="preserve">
+    <value>`press shift+enter to run this command line
+
+`a comment starts with a backtick
+
+# 123 `push an integer literal. Space is required
+# 234 `push another one
++ `pop two objects, perform addition on them and push the result on the stack
+drop `remove the result
+
+&lt;forms.form&gt; ` push the windows.forms.form type on the stack
+new `instantiate it with default constructor
+dup `copy the reference so we don't lose it (could also store it in a var)
+{} `create an empty List of Object
+$ Show `push the method name we want to call, as a string
+`(string literals WITHOUT spaces MAY omit the doublequotes)
+@ `call the form's Show method with an empty argument list
+$ "A new Windows Form" `push a string. the space after $ is required
+`(string literals WITH spaces MAY NOT omit the doublequotes
+$ Text `the property we want to store
+! `store the string in the property of the form
+
+`! ("bang") does not pop the reference from the stack. Inconsistent, i know.
+
+dup `keep the reference
+$ Controls `push the name of the property we want
+? `read from the property 
+&lt;forms.button&gt; new `instantiate a button control
+over `copy the reference from level 2 of the stack
+over `again
+# 1 `push the integer with value 1 on the stack
+{}n `take that many items from the stack and turn them into a list
+$ Add `push the name of the method
+@ `call it
+
+$ Click! $ Text !
+</value>
+  </data>
   <metadata name="MenuStrip1.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
     <value>17, 17</value>
   </metadata>

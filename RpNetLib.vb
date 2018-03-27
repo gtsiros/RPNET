@@ -140,7 +140,7 @@ Public Class RpNetLib
         End Operator
     End Class
 
-    <Serializable> Class Algebraic
+    <Serializable> Class Algebraic ' symbolic expressions like sqrt(f(x)+2)/3 are just secondaries with a very specific structure in RPL. RPL allows for symbolic algebraic manipulation
         Inherits Secondary
     End Class
 
@@ -631,12 +631,14 @@ Public Class RpNetLib
     End Function
 
     Sub New()
+
         If File.Exists("../test.bin") Then
-            Dim aFormatter As IFormatter = New BinaryFormatter
-            Using aStream As Stream = New FileStream("../test.bin", FileMode.Open, FileAccess.Read, FileShare.Read),
-            ugz As New GZipStream(aStream, CompressionMode.Decompress)
-                deps = DirectCast(aFormatter.Deserialize(ugz), Dictionary(Of String, List(Of String)))
+            Dim bf As IFormatter = New BinaryFormatter
+            Using uc As Stream = New FileStream("../test.bin", FileMode.Open, FileAccess.Read, FileShare.Read), ugz As New GZipStream(uc, CompressionMode.Decompress)
+                deps = DirectCast(bf.Deserialize(ugz), Dictionary(Of String, List(Of String)))
             End Using
+        Else
+            ReInit()
         End If
     End Sub
 

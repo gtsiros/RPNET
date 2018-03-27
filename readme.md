@@ -1,6 +1,15 @@
-note1: still figuring out how to do stuff with git  
-note2: first thing you do once you get it to build is write **reinit** in the textbox and press *shift+enter*. If it doesn't work, you can try changing *gacutil_path* in rpnetlib.vb  
-note3: the code is a veritable mess, i have never worked with other coders so far, so...
+# REALLY QUICK DEMO
+
+Open the solution in visual studio and run it.  
+Follow the instruction in the lower textbox.  
+This is just a demo of the syntax. 
+For more details try the wiki
+
+
+If the program complains, you might need to adjust the location of gacutil.exe in RpNetLib.vb
+
+
+
 
 # RPNET
 rpn system based around .net
