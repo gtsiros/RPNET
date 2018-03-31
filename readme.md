@@ -1,15 +1,12 @@
+Don't expect this to work. It's nothing more than a proof-of-concept thing.
+
 # REALLY QUICK DEMO
 
 Open the solution in visual studio and run it.  
 Follow the instruction in the lower textbox.  
 This is just a demo of the syntax. 
 For more details try the wiki
-
-
 If the program complains, you might need to adjust the location of gacutil.exe in RpNetLib.vb
-
-
-
 
 # RPNET
 rpn system based around .net

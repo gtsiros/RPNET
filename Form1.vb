@@ -30,7 +30,7 @@ Public Class Form1
         Dim cmdLine As String = tcmd.Text.Trim
         Try
             If cmdLine.Length = 0 Then
-                rpn.DS.push(rpn.DS.peek)
+                rpn.DS.Push(rpn.DS(0))
                 cmd_history.Append("dup " & vbNewLine)
             Else
                 cmd_history.Append(cmdLine & vbNewLine)
@@ -48,7 +48,7 @@ Public Class Form1
     Sub PreviewKeyDown_tin(o As Object, e As PreviewKeyDownEventArgs) Handles tcmd.PreviewKeyDown
         If e.KeyCode = Keys.Tab Then e.IsInputKey = True
         If e.KeyCode = Keys.Down AndAlso tcmd.Text.Trim.Length = 0 Then
-            tcmd.Text = rpn.ToStr(rpn.DS.Peek)
+            tcmd.Text = rpn.ToStr(rpn.DS(0))
         End If
     End Sub
 

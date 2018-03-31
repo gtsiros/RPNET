@@ -7,7 +7,6 @@ Imports System.Runtime.Serialization
 Imports System.Runtime.Serialization.Formatters.Binary
 Imports System.Text
 
-
 Public Structure AsmInfo
     Public Fullname As String
     Public version() As Integer
@@ -16,8 +15,6 @@ End Structure
 Public Enum Tok
     CurlyOpen
     CurlyClose
-    SecondaryOpen
-    SecondaryClose
     BracketOpen
     BracketClose
     ParenOpen
@@ -46,10 +43,21 @@ Public Class RpNetLib
     Const gacutil_path As String = "C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.7.1 Tools\gacutil.exe"
 
     Public deps As Dictionary(Of String, List(Of String))
-    Public delims As New Dictionary(Of String, Tok) From {{"::", Tok.SecondaryOpen}, {";", Tok.SecondaryClose}, {"{", Tok.CurlyOpen}, {"}", Tok.CurlyClose}, {"(", Tok.ParenOpen}, {")", Tok.ParenClose}, {"[", Tok.BracketOpen}, {"]", Tok.BracketClose}, {"#", Tok.delim_bint}, {"%", Tok.delim_single}, {"%%", Tok.delim_double}, {"$", Tok.delim_cstring}, {"id", Tok.delim_identifier}}
+    Public delims As New Dictionary(Of String, Tok) From {{"{", Tok.CurlyOpen}, {"}", Tok.CurlyClose}, {"(", Tok.ParenOpen}, {")", Tok.ParenClose}, {"[", Tok.BracketOpen}, {"]", Tok.BracketClose}, {"#", Tok.delim_bint}, {"%", Tok.delim_single}, {"%%", Tok.delim_double}, {"$", Tok.delim_cstring}, {"id", Tok.delim_identifier}}
     Public types As New Dictionary(Of Tok, Type) From {{Tok.delim_bint, GetType(Integer)}, {Tok.delim_single, GetType(Single)}, {Tok.delim_double, GetType(Double)}, {Tok.delim_cstring, GetType(String)}, {Tok.delim_identifier, GetType(String)}}
     Public itypes As New Dictionary(Of Type, Integer) From {{GetType(Integer), 1}, {GetType(String), 2}, {GetType(Identifier), 3}, {GetType(List(Of Object)), 4}, {GetType(Secondary), 5}, {GetType(Type), 6}, {GetType(Boolean), 7}}
     Public escapes As New Dictionary(Of Char, Char) From {{"\"c, "\"c}, {"n"c, Chr(10)}, {"r"c, Chr(13)}, {"t"c, Chr(9)}, {""""c, """"c}}
+
+    Sub New()
+        If File.Exists("../test.bin") Then
+            Dim bf As IFormatter = New BinaryFormatter
+            Using uc As Stream = New FileStream("../test.bin", FileMode.Open, FileAccess.Read, FileShare.Read), ugz As New GZipStream(uc, CompressionMode.Decompress)
+                deps = DirectCast(bf.Deserialize(ugz), Dictionary(Of String, List(Of String)))
+            End Using
+        Else
+            ReInit()
+        End If
+    End Sub
 
     Public Shared Function Higher(ByRef a() As Integer, ByRef b() As Integer) As Boolean ' compares version numbers. 
         Higher = False
@@ -64,42 +72,34 @@ Public Class RpNetLib
 
     <DebuggerStepThrough> Public Class StackListHybrid
         Inherits List(Of Object)
+
+        'some helper functions
         Public Function Pop() As Object
             Pop = Item(0)
             RemoveAt(0)
         End Function
-        Public Sub Drop(ByVal n As Integer)
-            If n < 1 Then Exit Sub
-            Do
-                RemoveAt(0)
-                n -= 1
-            Loop While n > 0
-        End Sub
-        Public ReadOnly Property Peek As Object
-            Get
-                Peek = Item(0)
-            End Get
-        End Property
         Public Shadows Sub Push(ob As Object)
             Insert(0, ob)
         End Sub
-        Public Sub Swap()
+        Public Sub Swap() ' ob.2 ob.1 -> ob.1 ob.2
             Insert(0, Item(1))
             RemoveAt(2)
         End Sub
-        Public Sub Rot()
+        Public Sub Rot() ' ob.3 ob.2 ob.1 -> ob.2 ob.1 ob.3
             Insert(0, Item(2))
             RemoveAt(3)
         End Sub
-        Public Sub Roll(i As Integer)
+        Public Sub Roll(i As Integer) ' ob.n ob.n-1 ... ob.2 ob.1 n -> ob.n-1 ... ob.2 ob.1 ob.n
             Insert(0, Item(i - 1))
             RemoveAt(i)
         End Sub
+        Public Sub RollDown(i As Integer) ' ob.n ob.n-1 ... ob.2 ob.1 n -> ob.1 ob.n ob.n-1 ... ob.2
 
+        End Sub
     End Class
 
-    Public DS As New StackListHybrid
-    Public RS As New Stack(Of StackFrame)
+    Public DS As New StackListHybrid ' Data Stack
+    Public RS As New Stack(Of StackFrame) ' Return Stack
 
     Dim vars As New Dictionary(Of String, Object)
     Dim loops As New Stack(Of Integer)
@@ -155,6 +155,8 @@ Public Class RpNetLib
 
 
     Dim words As New Dictionary(Of String, Object) From { '$ system.io.directory totype { } $ GetCurrentDirectory @
+        {"::", Sub() Stop},
+        {";", Sub() Stop},
         {"same", Sub() DS.Push(DS.Pop.Equals(DS.Pop))}, ' most of these are quick and dirty assignments to corresponding operators in vb/.net
         {"==", Sub() DS.Push(DS.Pop = DS.Pop)},
         {"?i", Sub() DS.Push(loops.Peek)}, 'gets the topmost loop counter value
@@ -167,10 +169,10 @@ Public Class RpNetLib
         {"depth", Sub() DS.Push(DS.Count)},
         {"dir", Sub() DS.Push(Directory.EnumerateFiles(Directory.GetCurrentDirectory).ToList.ConvertAll(Function(s) DirectCast(s, Object)))}, ' can be done via reflection too
         {"drop", Sub() DS.Pop()},
-        {"dup", Sub() DS.Push(DS.Peek)},
+        {"dup", Sub() DS.Push(DS(0))},
         {"end", Sub() End},
         {"errorout", Sub() Throw New Exception(DirectCast(DS.Pop, String))},
-        {"eval", Sub() If TypeOf DS.Peek Is List(Of Object) Then Eval(New Secondary(DirectCast(DS.Pop, List(Of Object)))) Else Eval(DS.Pop)}, ' this difference between user eval and system eval exists in RPL too. 
+        {"eval", Sub() If TypeOf DS(0) Is List(Of Object) Then Eval(New Secondary(DirectCast(DS.Pop, List(Of Object)))) Else Eval(DS.Pop)}, ' this difference between user eval and system eval exists in RPL too. 
         {"false", False}, ' -> false
         {"import", Sub() DS.Push(Assembly.Load(DirectCast(DS.Pop, String)))}, ' can be done with reflection, too
         {"load", Sub() DS.Push(Assembly.LoadFile(Directory.GetCurrentDirectory() & "\" & DirectCast(DS.Pop, String)))}, ' this one too
@@ -192,14 +194,14 @@ Public Class RpNetLib
         {"words", Sub() DS.Push(words.Values.ToList)},
         {"ift", Sub() If DirectCast(DS(1), Boolean) Then Eval(DS.Pop) Else DS.Pop()},
         {"[]n", Sub() ' ob.1 ... ob.n n -> array(ob1...obn)
-                    If DS.Count - 1 < DirectCast(DS.Peek, Integer) Then Throw New ArgumentException("bad argument count")
+                    If DS.Count - 1 < DirectCast(DS(0), Integer) Then Throw New ArgumentException("bad argument count")
                     Dim new_array As Array = DS.Skip(1).Take(DirectCast(DS.Pop, Integer)).Reverse.ToArray
                     Eval(words("ndrop"))
                     DS.Push(new_array)
                 End Sub},
         {"new", Sub()
                     Dim argument_list As List(Of Object)
-                    If TypeOf DS.Peek Is List(Of Object) Then argument_list = DirectCast(DS.Pop, List(Of Object)) Else argument_list = New List(Of Object)
+                    If TypeOf DS(0) Is List(Of Object) Then argument_list = DirectCast(DS.Pop, List(Of Object)) Else argument_list = New List(Of Object)
                     Dim found_type As Type = Nothing
                     If TypeOf DS(0) Is String Then
                         found_type = ToType(DirectCast(DS.Pop, String))
@@ -217,9 +219,9 @@ Public Class RpNetLib
         {"put", Sub()
                     Dim index As Integer = DirectCast(DS.Pop, Integer)
                     Dim ob As Object = DS.Pop
-                    If TypeOf DS.Peek Is Array Then
-                        DirectCast(DS.Peek, Array).SetValue(ob, index)
-                    ElseIf TypeOf DS.Peek Is List(Of Object) Then ' there should be a better way to do this
+                    If TypeOf DS(0) Is Array Then
+                        DirectCast(DS(0), Array).SetValue(ob, index)
+                    ElseIf TypeOf DS(0) Is List(Of Object) Then ' there should be a better way to do this
                         Dim l As List(Of Object) = DirectCast(DS.Pop, List(Of Object))
                         l.RemoveAt(index)
                         l.Insert(index, ob)
@@ -236,7 +238,7 @@ Public Class RpNetLib
         {"!", Sub() ' ob2 ob1 str -> ob2. it "bangs" ob1 into the ob2 property named str. leaves ob2 on the stack
                   Dim name As String = DirectCast(DS.Pop, String)
                   Dim obj As Object = DS.Pop
-                  CallByName(DS.Peek, DirectCast(name, String), CallType.Set, New Object() {obj})
+                  CallByName(DS(0), DirectCast(name, String), CallType.Set, New Object() {obj})
               End Sub},
         {"?", Sub() ' obA str - > obB, gets the property value named str of object obA 
                   Dim pname As String = DirectCast(DS.Pop, String)
@@ -434,7 +436,7 @@ Public Class RpNetLib
                     words.Add(DirectCast(DS(0), String), DS(1))
                     DS.RemoveRange(0, 2)
                 End Sub},
-        {"undef", Sub() If TypeOf DS.Peek Is String AndAlso words.ContainsKey(DirectCast(DS.Peek, String)) Then words.Remove(DirectCast(DS.Pop, String))}
+        {"undef", Sub() If TypeOf DS(0) Is String AndAlso words.ContainsKey(DirectCast(DS(0), String)) Then words.Remove(DirectCast(DS.Pop, String))}
     }
 
     Sub ReInit()
@@ -554,12 +556,18 @@ Public Class RpNetLib
             Next
             If escaped OrElse out_str.Contains(" "c) Then ToStr &= """"c & out_str & """"c Else ToStr &= out_str
         ElseIf TypeOf ob Is List(Of Object) Then
-            'ElseIf GetType(IList).IsAssignableFrom(ob.GetType) Then
             Dim l As List(Of Object) = DirectCast(ob, List(Of Object))
-            If l.Count > 10 Then
-                ToStr = l.Take(10).Aggregate("{ ", Function(a, b) a & ToStr(b) & " ", Function(c) c & "(+ " & l.Count - 10 & " more)}")
+            ' if the first object in the list is '::' then treat it as a Secondary.
+            If l(0).Equals(words("::")) Then
+                Stop
             Else
-                ToStr = l.Aggregate("{ ", Function(a, b) a & ToStr(b) & " ", Function(c) c & "}")
+                'treat it as a simple list
+                'ElseIf GetType(IList).IsAssignableFrom(ob.GetType) Then
+                If l.Count > 100 Then
+                    ToStr = l.Take(100).Aggregate("{ ", Function(a, b) a & ToStr(b) & " ", Function(c) c & "(+ " & l.Count - 100 & " more)}")
+                Else
+                    ToStr = l.Aggregate("{ ", Function(a, b) a & ToStr(b) & " ", Function(c) c & "}")
+                End If
             End If
         ElseIf TypeOf ob Is StackFrame Then
             Dim sf As StackFrame = DirectCast(ob, StackFrame)
@@ -595,7 +603,6 @@ Public Class RpNetLib
         End If
     End Function
 
-    Dim stepping As Boolean = False ' here i tried to make a step-by-step execution thingie. i failed.
 
     Sub Eval(p0 As Object)
         If p0 Is Nothing Then Exit Sub
@@ -625,26 +632,13 @@ Public Class RpNetLib
 
     Function TokenType(s As String) As Tok
         TokenType = Tok.none
-        If words.ContainsKey(s) Then Return Tok.word
         If delims.ContainsKey(s) Then Return delims(s)
+        If words.ContainsKey(s) Then Return Tok.word
         If s(0) = "<"c AndAlso s.EndsWith(">"c) Then Return Tok.type
     End Function
 
-    Sub New()
-
-        If File.Exists("../test.bin") Then
-            Dim bf As IFormatter = New BinaryFormatter
-            Using uc As Stream = New FileStream("../test.bin", FileMode.Open, FileAccess.Read, FileShare.Read), ugz As New GZipStream(uc, CompressionMode.Decompress)
-                deps = DirectCast(bf.Deserialize(ugz), Dictionary(Of String, List(Of String)))
-            End Using
-        Else
-            ReInit()
-        End If
-    End Sub
-
-
-    Function Split(s As String) As List(Of String)
-        Split = New List(Of String)
+    Function ToTokens(s As String) As List(Of String)
+        ToTokens = New List(Of String)
         Dim current_token As String = ""
         Dim t As Lex = Lex.white
         For Each c As Char In s
@@ -661,7 +655,7 @@ Public Class RpNetLib
                     End If
                 Case Lex.token
                     If Char.IsWhiteSpace(c) Then
-                        Split.Add(current_token)
+                        ToTokens.Add(current_token)
                         current_token = ""
                         t = Lex.white
                     Else
@@ -671,7 +665,7 @@ Public Class RpNetLib
                     If "\"c = c Then
                         t = Lex.escap
                     ElseIf """"c = c Then
-                        Split.Add(current_token)
+                        ToTokens.Add(current_token)
                         t = Lex.white
                     Else
                         current_token &= c
@@ -691,86 +685,86 @@ Public Class RpNetLib
             Case Lex.cstri, Lex.escap
                 Throw New Exception("badly terminated string & '" & current_token & "'")
             Case Lex.token
-                Split.Add(current_token)
+                ToTokens.Add(current_token)
         End Select
     End Function
 
-
-    Function Parse(src As String) As Secondary
+    Function Parse(src As String) As Object
+        Dim tokens As List(Of String) = ToTokens(src)
+        If tokens.Count = 0 Then Return Nothing
         Parse = New Secondary()
-        Dim tokens As List(Of String) = Split(src)
-        Dim st As New Stack(Of IList)
-        If tokens.Count > 0 Then
-            st.Push(Parse)
-            Dim expect As Tok = Tok.none
-            Dim pos As Integer = 0
-            Try
-                For Each token As String In tokens
-                    If expect <> Tok.none Then
-                        Try
-                            Dim o As Object
-                            If expect = Tok.delim_cstring Then
-                                o = token
-                            ElseIf expect = Tok.delim_identifier Then
-                                o = New Identifier(token)
-                            Else
-                                o = CTypeDynamic(token, types(expect))
-                            End If
-                            If o Is Nothing Then Throw New Exception()
-                            st.Peek.Add(o)
-                        Catch ex As Exception
-                            Throw New Exception("can not represent a " & types(expect).ToString)
-                        End Try
-                        expect = Tok.none
-                    Else
-                        Dim tt As Tok = Tok.none
-                        If words.ContainsKey(token) Then
-                            tt = Tok.word
-                        ElseIf delims.ContainsKey(token) Then
-                            tt = delims(token)
-                        ElseIf token(0) = "<"c AndAlso token(token.Length - 1) = ">"c Then
-                            tt = Tok.type
-                        End If
-                        Select Case tt
-                            Case Tok.CurlyOpen
-                                st.Push(New List(Of Object))
-                            Case Tok.SecondaryOpen
-                                st.Push(New Secondary)
-                            Case Tok.CurlyClose
-                                If TypeOf st.Peek IsNot List(Of Object) Then Throw New Exception("mismatched list")
-                                Dim ob As Object = st.Pop
-                                st.Peek.Add(ob)
-                            Case Tok.SecondaryClose
-                                If TypeOf st.Peek IsNot Secondary Then Throw New Exception("mismatched secondary")
-                                Dim ob As Object = st.Pop
-                                st.Peek.Add(ob)
-                            Case Tok.BracketOpen, Tok.BracketClose, Tok.ParenOpen, Tok.ParenClose ' this is why it doesn't parse arrays yet
-                            Case Tok.delim_bint, Tok.delim_single, Tok.delim_double, Tok.delim_cstring, Tok.delim_identifier
-                                expect = tt
-                            Case Tok.word
-                                st.Peek.Add(words(token))
-                            Case Tok.type
-                                st.Peek.Add(ToType(token.Substring(1, token.Length - 2)))
-                            Case Tok.none
-                                st.Peek.Add(New Identifier(token))
-                        End Select
-                    End If
-                    pos += 1
-                Next
+        Dim st As New Stack(Of List(Of Object)) ' for embedded lists (and secondaries?) :: { { :: ; { } } :: ; } } :: ; ;
+        'valid types:
+        ' literals ( # 1, % 1.1, %% 1.1, $ "", <type>
+        ' collections { ob1 ob2 ... } :: ob1 ob2 ... ;
+        ' a secondary is a list with first object 'docol' / '::'
+        ' but how to differentiate between the user entering { :: ; } and :: ; ? according to the rule above, 
+        ' both have the same output, a list with two objects, a docol (::) and a semi (;)
+        '
+        Dim expect As Tok = Tok.none
+        Dim outputType As Type = TokenType(tokens(0)) ' the first token determines the type of the output
 
-                If st.Count = 0 Then
-                    Throw New Exception("something went terribly wrong")
-                ElseIf st.Count > 1 Then
-                    Dim resp As String = ""
-                    Do
-                        resp &= ToStr(st.Pop) & vbNewLine
-                    Loop While st.Count > 0
-                    Throw New Exception(resp)
+        Dim pos As Integer = 0
+        Try
+            For Each token As String In tokens
+                If expect <> Tok.none Then
+                    Try
+                        Dim o As Object
+                        If expect = Tok.delim_cstring Then
+                            o = token
+                        ElseIf expect = Tok.delim_identifier Then
+                            o = New Identifier(token)
+                        Else
+                            o = CTypeDynamic(token, types(expect))
+                        End If
+                        If o Is Nothing Then Throw New Exception()
+                        st.Peek.Add(o)
+                    Catch ex As Exception
+                        Throw New Exception("can not represent a " & types(expect).ToString)
+                    End Try
+                    expect = Tok.none
+                Else
+                    Dim tt As Tok = Tok.none
+                    If words.ContainsKey(token) Then
+                        tt = Tok.word
+                    ElseIf delims.ContainsKey(token) Then
+                        tt = delims(token)
+                    ElseIf token(0) = "<"c AndAlso token(token.Length - 1) = ">"c Then
+                        tt = Tok.type
+                    End If
+                    Select Case tt
+                        Case Tok.CurlyOpen
+                            st.Push(New List(Of Object))
+                        Case Tok.CurlyClose
+                            If TypeOf st.Peek IsNot List(Of Object) Then Throw New Exception("mismatched list")
+                            Dim ob As Object = st.Pop
+                            st.Peek.Add(ob)
+                        Case Tok.BracketOpen, Tok.BracketClose, Tok.ParenOpen, Tok.ParenClose ' this is why it doesn't parse arrays yet
+                        Case Tok.delim_bint, Tok.delim_single, Tok.delim_double, Tok.delim_cstring, Tok.delim_identifier ' #, %, %%, $, id
+                            expect = tt
+                        Case Tok.word ' don't remember why i need this
+                            st.Peek.Add(words(token))
+                        Case Tok.type ' <asdfasdf>
+                            st.Peek.Add(ToType(token.Substring(1, token.Length - 2)))
+                        Case Tok.none ' by default
+                            st.Peek.Add(New Identifier(token))
+                    End Select
                 End If
-            Catch ex As Exception
-                W(tokens(pos) & "(" & pos & ") " & ex.Message)
-            End Try
-        End If
+                pos += 1
+            Next
+
+            If st.Count = 0 Then
+                Throw New Exception("something went terribly wrong")
+            ElseIf st.Count > 1 Then
+                Dim resp As String = ""
+                Do
+                    resp &= ToStr(st.Pop) & vbNewLine
+                Loop While st.Count > 0
+                Throw New Exception(resp)
+            End If
+        Catch ex As Exception
+            W(tokens(pos) & "(" & pos & ") " & ex.Message)
+        End Try
     End Function
 
     Public W As Action(Of String) = Sub(s) Debug.WriteLine(s) ' so the using program can change it to whatever
