@@ -1,9 +1,7 @@
-﻿Imports System.Reflection
+﻿Imports System.Data.SqlClient
+
 Module Utilities
 
-    Public Sub W(s As String)
-        Debug.WriteLine(s)
-    End Sub
 
     Public Sub Main()
 
