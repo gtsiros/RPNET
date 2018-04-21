@@ -1,20 +1,25 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Reflection;
-using System.Reflection.Emit;
-using System.Runtime.CompilerServices;
-using System.Text;
 
 public static class RPNETCS {
     // after i convert this to a normal class (and not a command line program)
     // i will remove all static qualifiers
 
-    static Object OB; // the current OBject being executed
-    static Stack<Object> DS = new Stack<Object>(); // DataStack
-    static Stack<List<Object>> RS = new Stack<List<Object>>(); // RunStream
-    static Stack<int> STK = new Stack<int>(); // return STacK, basically the index of the next object to be executed
-    static int IP = -1; // the instruction pointer for the topmost seco
+    // the current OBject being executed
+    static Object OB; 
+
+    // the Data Stack. It's where arguments are popped from, results pushed to and the user sees as general purpose I/O
+    static Stack<Object> DS = new Stack<Object>(); 
+
+    // The RunStream. The topmost list is the "current" secondary.
+    static Stack<List<Object>> RS = new Stack<List<Object>>();
+
+    // return STacK. This is where the deeper IPs are pushed
+    static Stack<int> STK = new Stack<int>(); 
+
+    // index into the current secondary (the one on the top of the runstream) 
+    static int IP = 0;
 
     static Action _DoCol = (Action)DoCol; // just so i don't carry the cast around
     static Action _DoSemi = (Action)DoSemi;
@@ -24,16 +29,91 @@ public static class RPNETCS {
     static Action _Again = (Action)Again;
     static Action _Until = (Action)Until;
     static Action _MaybeQuit = (Action)MaybeQuit;
-    static Action _Drop = () => DS.Pop();
+    static Action _Drop = () => DS.Pop(); // just three trivial "words"
     static Action _Dup = () => DS.Push(DS.Peek());
     static Action _Eval = () => Eval(DS.Pop());
 
+    static Dictionary<String, Tok> delims = new Dictionary<string, Tok> { { "{", Tok.CurlyOpen },
+        { "}", Tok.CurlyClose },
+        { "(", Tok.ParenOpen },
+        { ")", Tok.ParenClose },
+        { "[", Tok.BracketOpen },
+        { "]", Tok.BracketClose },
+        { "#", Tok.delim_bint },
+        { "%", Tok.delim_single },
+        { "%%", Tok.delim_double },
+        { "$", Tok.delim_cstring },
+        { "id", Tok.delim_identifier }
+    };
+
+    static Dictionary<String, Object> words = new Dictionary<string, Object>  {
+        { "::", _DoCol },
+        { ";", _DoSemi },
+        { "{", _DoList },
+        { "begin", _Begin },
+        { "again", _Again },
+        { "until", _Until },
+        { "maybequit", _MaybeQuit },
+        { "drop", _Drop },
+        { "dup", _Dup },
+        { "eval", _Eval },
+        { "'", (Action)DoTick },
+    };
+
+    static Dictionary<Char, Char> escapes = new Dictionary<char, char> {
+        { '\\', '\\' },
+        { 'n', '\n' },
+        { 'r', '\r' },
+        { 't', '\t' },
+        { '"', '"' }
+    };
+
+    static Dictionary<Tok, Type> types = new Dictionary<Tok, Type> {
+        { Tok.delim_bint, typeof(int) },
+        { Tok.delim_single, typeof(Single) },
+        { Tok.delim_double, typeof(Double) },
+        { Tok.delim_cstring, typeof(String) },
+        { Tok.delim_identifier, typeof(String) }
+    };
+
+    enum Tok {
+        CurlyOpen,
+        CurlyClose,
+        SecondaryOpen,
+        SecondaryClose,
+        BracketOpen,
+        BracketClose,
+        ParenOpen,
+        ParenClose,
+        word,
+        delim_bint,
+        delim_single,
+        delim_double,
+        delim_cstring,
+        delim_identifier,
+        none
+    }
+    enum Lex {
+        white,
+        cstri,
+        token,
+        escap,
+        comme
+    }
+
+    // push a secondary to the return stack and make it the new current secondary.
     static void DoCol() {
-        int startIndex = IP + 1; // ignore DoCol ..
+        // at this point, IP points to this here object (DoCol, actually _DoCol)
+        // we start by keeping the index of the next object right after ::
+        int startIndex = IP + 1; 
+        // make IP point just past this seco
         SkipOb();
-        RS.Push(RS.Peek().GetRange(startIndex, IP - startIndex)); // ... but not DoSemi
-        STK.Push(IP); // the current secondary continues after the object
-        IP = 0; // the new secondary begins at the beginning
+        // now IP points to the object right after this secondary's matching semi (;)
+        RS.Push(RS.Peek().GetRange(startIndex, IP - startIndex));
+        // the current secondary will continue at this IP after the new secondary completes execution
+        STK.Push(IP);
+        // the new secondary begins at the beginning
+        IP = 0; 
     }
 
     static void DoList() {
@@ -44,8 +124,17 @@ public static class RPNETCS {
     }
 
     static void SkipOb() {
+        // this one iterates over objects, increasing the depth for each prologue that starts a composite
+        // and decreasing it for every semi
+        //        1 :: 2 2 :: 2 2 ; 3 3 { 4 4 { 5 :: 6 ; } :: 7 ; } ; 
+        // depth: 0 1  1 1 2  2 2 1 1 1 2 2 2 3 3 4  4 3 2 3  3 2 1 0
+        // so in the above case, only the initial '1' will be skipped
+
         int depth = 0;
+
+        // don't go past the end of the current secondary
         int end = RS.Peek().Count - 1;
+
         do {
             OB = RS.Peek()[IP++]; // get object, move to next
             if (OB.Equals(_DoSemi)) {
@@ -60,14 +149,25 @@ public static class RPNETCS {
     }
 
     static void DoSemi() {
+        // no need to IP++ at the start since we're dropping the secondary anyway
+
+        // pop the current secondary from the runstream, making the inner secondary the current one
         RS.Pop();
-        IP = STK.Pop(); // no need to IP++ at the start since we're dropping the secondary anyway
+        // restore the inner secondary's IP
+        IP = STK.Pop(); 
     }
 
+    // this pushes the next object to the data stack and skips over it in the runstream.
+    // in other words, instead of executing it, it pushes it on the stack.
+    // that way the program becomes data
     static void DoTick() {
+        // first find what this object is
         int startIndex = IP + 1;
+        // SkipOb takes care of skipping over any kind of object (composite or atomic)
         SkipOb();
-        if (IP - startIndex > 1) { // yep and this is where the Secondary Class becomes necessary
+
+        // if we skipped over more than one IP it means we're pushing a composite
+        if (IP - startIndex > 1) { 
             // create a new object depending on what this one was
             // it is either a secondary, a symbolic or a list
             Object ob = RS.Peek()[startIndex];
@@ -88,13 +188,23 @@ public static class RPNETCS {
         }
     }
 
+    // this marks the beginning of a loop
     static void Begin() {
-        IP++; // Don't need to call SkipOb 
+        IP++; // Don't need to call SkipOb, we know _Begin is atomic
         STK.Push(IP);
     }
+
+    // this marks the end of an infinite (not indefinite) loop
+    // currently there is no way to exit this kind of loop.
+    // it would require a way to directly pop the STK
     static void Again() {
         IP = STK.Peek();
     }
+
+    // pops a bool off of the data stack and does Again if it is false
+    // so
+    // #0 begin dup #1 + dup #10 == until
+    // pushes #0 to #10 on the data stack
     static void Until() {
         if ((bool)DS.Pop()) {
             STK.Pop();
@@ -104,6 +214,10 @@ public static class RPNETCS {
         }
     }
 
+    // this is an interesting word
+    // removes the next object from the runstream
+    // pops the runstream
+    // and inserts the object in the inner secondary at the position of its IP
     static void Cola() {
         // IP++; // typical for any object, but since we'll be doing DoSemi, IP+1 below is enough
         // important 
@@ -115,6 +229,7 @@ public static class RPNETCS {
         // and pushes the (popped) object so that the next object executed is this one
         RS.Peek().Insert(IP, ob);
     }
+
     // doubt we'll ever get here, but why not
     public static void DoSymb() { }
 
@@ -126,12 +241,13 @@ public static class RPNETCS {
 
     public static void Main() {
         // "boot" process
-        // :: BEGIN 1 :: 2 ; 3 ESC? UNTIL ;
+        // :: begin 1 :: 2 ; 3 maybequit until ;
         List<Object> outerLoop = new List<object> { _Begin, 1, _DoCol, 2, _DoSemi, 3, _MaybeQuit, _Until }; // outer loop has no semi. It's never popped from RS
         RS.Push(outerLoop);
         IP = 0;
 
         // inner loop
+        // just keep executing objects one after the other
         while (IP < RS.Peek().Count) {
             OB = RS.Peek()[IP];
             Eval();
@@ -155,6 +271,8 @@ public static class RPNETCS {
                 act();
                 break;
             default:
+                // normally, each object is responsible for adjusting the IP, but since for now we push
+                // them ourselves, we adjust it directly
                 IP++;
                 DS.Push(OB);
                 break;
@@ -178,6 +296,9 @@ public static class RPNETCS {
                 return "<" + ob.GetType().ToString() + ">";
         }
     }
+
+    // i'm not proud of this, but i had to write a parser myself
+    // i know this is far from elegant
     static Secondary StrTo(String src) {
         Secondary strto = new Secondary(new Object[] { });
         List<String> tokens = Split(src);
@@ -269,8 +390,6 @@ public static class RPNETCS {
         }
         return strto;
     }
-    static Dictionary<String, Object> words = new Dictionary<string, object> { { "m", "a" } };
-    static Dictionary<String, Tok> delims = new Dictionary<string, Tok> { { "::", Tok.SecondaryOpen } };
     static Tok WhatIs(String s) {
         if (words.ContainsKey(s)) {
             return Tok.word;
@@ -281,9 +400,9 @@ public static class RPNETCS {
         return Tok.none;
     }
 
-    static Dictionary<Tok, Type> types = new Dictionary<Tok, Type> { { Tok.delim_bint, typeof(int) }, { Tok.delim_single, typeof(Single) }, { Tok.delim_double, typeof(Double) }, { Tok.delim_cstring, typeof(String) }, { Tok.delim_identifier, typeof(String) } };
 
     public static Action<String> W = (s) => Debug.WriteLine(s);
+
     class Identifier {
         public String name;
     }
@@ -303,6 +422,8 @@ public static class RPNETCS {
         }
     }
 
+
+    // this splits a string into tokens
     static List<String> Split(String s) {
         List<String> split = new List<String>();
         String currentToken = "";
@@ -365,32 +486,5 @@ public static class RPNETCS {
         return split;
     }
 
-
-    static Dictionary<Char, Char> escapes = new Dictionary<char, char> { { '\\', '\\' }, { 'n', '\n' }, { 'r', '\r' }, { 't', '\t' }, { '"', '"' } };
-
-    enum Tok {
-        CurlyOpen,
-        CurlyClose,
-        SecondaryOpen,
-        SecondaryClose,
-        BracketOpen,
-        BracketClose,
-        ParenOpen,
-        ParenClose,
-        word,
-        delim_bint,
-        delim_single,
-        delim_double,
-        delim_cstring,
-        delim_identifier,
-        none
-    }
-    enum Lex {
-        white,
-        cstri,
-        token,
-        escap,
-        comme
-    }
 
 }
