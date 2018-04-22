@@ -200,16 +200,24 @@ public static class RPNETCS {
     public static void Main() {
         // "boot" process
         // :: begin 1 :: 2 ; 3 maybequit until ;
-        List<Object> outerLoop = new List<object> { _Begin,  _MaybeQuit, _Until }; // outer loop has no semi. It's never popped from RS
-        RS.Push(outerLoop);
-        IP = 0;
-        
-        // inner loop
-        // just keep executing objects one after the other
-        while (IP < RS.Peek().Count) {
-            OB = RS.Peek()[IP];
-            Eval();
+        while (true) {
+            String s = Console.ReadLine();
+            if (s == "q") {
+                break;
+            }
+            Type t = Type.GetType(s, false, true);
+            Console.WriteLine(t != null ? t.Name : "null");
         }
+        //List<Object> outerLoop = new List<object> { _Begin,  _MaybeQuit, _Until }; // outer loop has no semi. It's never popped from RS
+        //RS.Push(outerLoop);
+        //IP = 0;
+        //
+        //// inner loop
+        //// just keep executing objects one after the other
+        //while (IP < RS.Peek().Count) {
+        //    OB = RS.Peek()[IP];
+        //    Eval();
+        //}
     }
 
     // when the system becomes self-sufficient (self-contained?) , this is going to be written in RPL
@@ -261,18 +269,18 @@ public static class RPNETCS {
 
     //// parts of the parser/compiler
     static Dictionary<String, Tok> qualifiers = new Dictionary<string, Tok> {
-        { "#", Tok.DoBint },
-        { "%", Tok.DoSingle },
-        { "%%", Tok.DoDouble },
-        { "@", Tok.DoMethodCall },
-        { "!", Tok.DoGet },
-        { "?", Tok.DoSet },
-        { "id", Tok.DoIdentifier }
+        { "#", Tok.bint },
+        { "%", Tok.single },
+        { "%%", Tok.extended },
+        { "@", Tok.method },
+        { "!", Tok.get },
+        { "?", Tok.set },
+        { "id", Tok.identifier },
     };
 
     static Dictionary<String, Tok> delimiters = new Dictionary<string, Tok> {
         { "<>", Tok.angle_brackets },
-        { "\"\"", Tok.doublequotes }
+        { "\"\"", Tok.doublequotes },
     };
 
     static Dictionary<String, Object> words = new Dictionary<string, Object>  {
@@ -291,33 +299,39 @@ public static class RPNETCS {
     };
 
     static Dictionary<Char, Char> escapes = new Dictionary<char, char> {
+        //from  to
+        // \\    \
         { '\\', '\\' },
+        // \n  newline
         { 'n', '\n' },
+        // \r  carriage return
         { 'r', '\r' },
+        // \t  horizontal tab
         { 't', '\t' },
-        { '"', '"' }
+        // \"  doublequote
+        { '"', '"' },
     };
 
     static Dictionary<Tok, Type> types = new Dictionary<Tok, Type> {
-        { Tok.DoBint, typeof(int) },
-        { Tok.DoSingle, typeof(Single) },
-        { Tok.DoDouble, typeof(Double) },
+        { Tok.bint, typeof(int) },
+        { Tok.single, typeof(Single) },
+        { Tok.extended, typeof(Double) },
         { Tok.doublequotes, typeof(String) },
-        { Tok.DoIdentifier, typeof(String) }
+        { Tok.identifier, typeof(String) },
     };
 
     enum Tok {
         word,
-        DoBint,
-        DoSingle,
-        DoDouble,
+        bint,
+        single,
+        extended,
         doublequotes,
-        DoIdentifier,
-        DoMethodCall,
-        DoGet,
-        DoSet,
+        identifier,
+        method,
+        get,
+        set,
         angle_brackets,
-        none
+        none,
     }
 
     enum Lex {
@@ -325,18 +339,27 @@ public static class RPNETCS {
         cstri,
         token,
         escap,
-        comme
+        comme,
     }
 
 
     // the syntax is pretty simple
     // a type descript and a sequence of characters like
-    // % 1324.123
+    // # 123 ("System.Int32")
+    // % 1.23 ("System.Single")
+    // %% 1.23456 ("System.Double")
+    // $ "character string" ("System.String")
+    // <type> characters (whatever type is)
     // should cause the appropriate object to be generated and 
     // inserted into the secondary under construction
-    // i know this is far from elegant
-
-    // as is right now, the product is a secondary which will be inserted into the runstream
+    // i know how i implement it seems far from elegant
+    // but it allows for great flexibility
+    // i might add typed arrays as follows:
+    // arrays are typed the same but the literal is like [ characters, ... ]
+    // so # [ 1,2,3] is an array of integers
+    // <date> [ 1/1/2010, 1/1/2011] should be an array of Date etc
+    
+    // as is right now, the output is a secondary which will be inserted into the runstream
     // it should actually process what kind of object it is being generated
     // so that whatever object is described in it, will be pushed on the stack
     // instead of being executed.
@@ -345,178 +368,10 @@ public static class RPNETCS {
     // the command line will implicitly be a secondary, that is, the command line will be implicitly prepended with ":: "
     // appended with " ;", parsed and evaluated.
     // this is different from the original behavior of STR->, which is more or less equivalent to entering its argument on the command line.
-    static Secondary StrTo(String src) {
 
-        Secondary strto = new Secondary(new Object[] { });
-        List<String> tokens = Split(src);
-        Stack<Object> st = new Stack<object>();
-        if (tokens.Count == 0) {
-            return strto;
-        }
-
-        void AppendToTopLevel(object ob) {
-            if (st.Count > 0) {
-                if (st.Peek() is Secondary) {
-                    ((Secondary)st.Peek()).Add(ob);
-                } else if (st.Peek() is List<Object>) {
-                    ((List<Object>)st.Peek()).Add(ob);
-                }
-            }
-        }
-        int pos = 0;
-        st.Push(strto);
-        Tok expect = Tok.none;
-        try {
-            while (pos < tokens.Count) {
-                if (expect != Tok.none) {
-                    dynamic o = null;
-                    try {
-                        if (expect == Tok.doublequotes) {
-                            o = tokens[pos];
-                        } else if (expect == Tok.DoIdentifier) {
-                            o = new Identifier() { name = tokens[pos] };
-                        } else if (expect == Tok.DoMethodCall) {
-                            o = new Identifier() { name = tokens[pos] };
-                        } else {
-                            o = Convert.ChangeType(tokens[pos], types[expect]);
-                        }
-                        if (o == null) {
-                            throw new Exception(tokens[pos]);
-                        }
-                    } catch (Exception ex) {
-                        throw new Exception("can not represent a " + types[expect].Name);
-                    }
-                    expect = Tok.none;
-                } else {
-                    Tok wi = WhatIs(tokens[pos]);
-                    switch (wi) {
-                        //case Tok.CurlyOpen:
-                        //    st.Push(new List<Object>());
-                        //    break;
-                        //case Tok.CurlyClose:
-                        //    if (st.Peek() is List<Object>) {
-                        //        AppendToTopLevel(st.Pop());
-                        //    } else {
-                        //        throw new Exception("mismatched list");
-                        //    }
-                        //    break;
-                        //case Tok.SecondaryOpen:
-                        //    st.Push(new Secondary(new Object[] { }));
-                        //    break;
-                        //case Tok.SecondaryClose:
-                        //    if (st.Peek() is Secondary) {
-                        //        AppendToTopLevel(st.Pop());
-                        //    } else {
-                        //        throw new Exception("mismatched list");
-                        //    }
-                        //    break;
-                        //case Tok.BracketOpen:
-                        //    break;
-                        //case Tok.BracketClose:
-                        //    break;
-                        //case Tok.ParenOpen:
-                        //    break;
-                        //case Tok.ParenClose:
-                        //    break;
-                        case Tok.word:
-                            break;
-                        case Tok.DoBint:
-                        case Tok.DoSingle:
-                        case Tok.DoDouble:
-                   //     case Tok.delim_cstring:
-                        case Tok.DoIdentifier:
-                            expect = wi;
-                            break;
-                        case Tok.DoMethodCall:
-
-                            break;
-                        case Tok.none:
-                            throw new Exception("unknown term");
-                    }
-                }
-                pos++;
-            }
-        } catch (Exception ex) {
-            W('(' + pos.ToString() + ')' + ex.Message);
-            return null;
-        }
-        return strto;
-    }
-    static Tok WhatIs(String s) {
-        if (words.ContainsKey(s)) {
-            return Tok.word;
-        }
-        if (delimiters.ContainsKey(s)) {
-            return delimiters[s];
-        }
-        return Tok.none;
-    }
-
-    // i want to rewrite this as a private class 
-    // so that i can call it like splitter.pop or splitter.peek
-    static List<String> Split(String s) {
-        List<String> split = new List<String>();
-        String currentToken = "";
-        Lex state = Lex.white;
-        foreach (Char c in s) {
-            switch (state) {
-                case Lex.white:
-                    if ('"' == c) {
-                        state = Lex.cstri;
-                        currentToken = "";
-                    } else if ('`' == c) {
-                        state = Lex.comme;
-                    } else if (!Char.IsWhiteSpace(c)) {
-                        state = Lex.token;
-                        currentToken = c.ToString();
-                    } /* else { 
-                        it is whitespace so we stay at this state
-                    }
-                    */
-                    break;
-                case Lex.token:
-                    if (Char.IsWhiteSpace(c)) {
-                        split.Add(currentToken);
-                        currentToken = "";
-                        state = Lex.white;
-                    } else {
-                        currentToken += c;
-                    }
-                    break;
-                case Lex.cstri:
-                    if ('\\' == c) {
-                        state = Lex.escap;
-                    } else if ('"' == c) {
-                        split.Add(currentToken);
-                        state = Lex.white;
-                    } else {
-                        currentToken += c;
-                    }
-                    break;
-                case Lex.escap:
-                    if (escapes.ContainsKey(c)) {
-                        currentToken += escapes[c];
-                        state = Lex.cstri;
-                    } else {
-                        throw new Exception("bad escape char '" + c + "'");
-                    }
-                    break;
-                case Lex.comme:
-                    if ('\n' == c || '\r' == c) {
-                        state = Lex.white;
-                    }
-                    break;
-            }
-        }
-        switch (state) {
-            case Lex.cstri:
-            case Lex.escap:
-                throw new Exception("badly terminated string '" + currentToken + "'");
-            case Lex.token:
-                split.Add(currentToken);
-                break;
-        }
-        return split;
+    // i can't do it. 
+    static Secondary StrTo(String str) {
+        return null;
     }
 
     // a delegate that can be overwritten so that the calling code can set it to whatever
