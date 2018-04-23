@@ -269,18 +269,19 @@ public static class RPNETCS {
 
     //// parts of the parser/compiler
     static Dictionary<String, Tok> qualifiers = new Dictionary<string, Tok> {
-        { "#", Tok.bint },
-        { "%", Tok.single },
+        { "#", Tok.integer }, // #123 or # 123 or maybe even #b #s #i #l to indicate byte, short, integer, long
+        { "%", Tok.single }, // %123 or % 123
         { "%%", Tok.extended },
-        { "@", Tok.method },
-        { "!", Tok.get },
-        { "?", Tok.set },
         { "id", Tok.identifier },
+        { "$", Tok.str },
     };
 
     static Dictionary<String, Tok> delimiters = new Dictionary<string, Tok> {
-        { "<>", Tok.angle_brackets },
-        { "\"\"", Tok.doublequotes },
+        { "<>", Tok.type },
+        { "\"\"", Tok.str },
+        { "@", Tok.method },
+        { "!", Tok.get },
+        { "?", Tok.set },
     };
 
     static Dictionary<String, Object> words = new Dictionary<string, Object>  {
@@ -298,6 +299,7 @@ public static class RPNETCS {
         { "'", (Action)DoTick },
     };
 
+    // for escaping characters in a string
     static Dictionary<Char, Char> escapes = new Dictionary<char, char> {
         //from  to
         // \\    \
@@ -313,24 +315,24 @@ public static class RPNETCS {
     };
 
     static Dictionary<Tok, Type> types = new Dictionary<Tok, Type> {
-        { Tok.bint, typeof(int) },
+        { Tok.integer, typeof(int) },
         { Tok.single, typeof(Single) },
         { Tok.extended, typeof(Double) },
-        { Tok.doublequotes, typeof(String) },
+        { Tok.str, typeof(String) },
         { Tok.identifier, typeof(String) },
     };
 
     enum Tok {
         word,
-        bint,
+        integer,
         single,
         extended,
-        doublequotes,
+        str,
         identifier,
         method,
         get,
         set,
-        angle_brackets,
+        type,
         none,
     }
 
@@ -348,8 +350,12 @@ public static class RPNETCS {
     // # 123 ("System.Int32")
     // % 1.23 ("System.Single")
     // %% 1.23456 ("System.Double")
-    // $ "character string" ("System.String")
+    // id foo (identifier)
+    // $ "character string" OR you can omit doublequotes if there are no spaces
+    // and no escapes $ fooba\rbaz ("System.String") does NOT have a linefeed character in it
     // <type> characters (whatever type is)
+    // so upon encountering a #, %,%%, id, $, OR a <type>, the parser knows how to interpreted the next token
+    // and in the case of a string, how to parse it
     // should cause the appropriate object to be generated and 
     // inserted into the secondary under construction
     // i know how i implement it seems far from elegant
