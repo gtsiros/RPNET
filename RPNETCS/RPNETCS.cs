@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
+using Microsoft.VisualBasic;
 
 public static class RPNETCS {
     // after i convert this to a normal class (and not a command line program)
@@ -55,6 +57,9 @@ public static class RPNETCS {
 
     class Identifier {
         public String name;
+        public static explicit operator Identifier(String s) {
+            return new Identifier() { name = s };
+        }
         // TODO: add constructor that checks for sane name values
     }
 
@@ -200,14 +205,20 @@ public static class RPNETCS {
     public static void Main() {
         // "boot" process
         // :: begin 1 :: 2 ; 3 maybequit until ;
-        while (true) {
-            String s = Console.ReadLine();
-            if (s == "q") {
-                break;
-            }
-            Type t = Type.GetType(s, false, true);
-            Console.WriteLine(t != null ? t.Name : "null");
-        }
+        //while (true) {
+        //    String s = Console.ReadLine();
+        //    if (s == "q") {
+        //        break;
+        //    }
+        //    Type t = Type.GetType(s, false, true);
+        //    Console.WriteLine(t != null ? t.Name : "null");
+        //}
+        String str = ":: # 1 % 1.2 %% 1.23 $ \"123\\n\" id haha <system.windows.forms.form> ;";
+        List<String> terms = Split(str);
+        //terms.ForEach(term => Console.WriteLine("'" + term + "'"));
+        Secondary parsed = StrTo(str);
+
+        Console.ReadKey();
         //List<Object> outerLoop = new List<object> { _Begin,  _MaybeQuit, _Until }; // outer loop has no semi. It's never popped from RS
         //RS.Push(outerLoop);
         //IP = 0;
@@ -249,7 +260,10 @@ public static class RPNETCS {
 
     [DebuggerStepThrough]
     static String ToStr(Object ob) {
-        switch (ob) {
+
+        if (type_specifier.ContainsValue(ob.GetType())) {
+            return type_specifier.FirstOrDefault(x => x.Value == ob.GetType()).Key + " " + ob.ToString();
+        } else switch (ob) {
             // there are three "special" cases, one for each type of composite
             // i haven't done the case for symbolics yet
             case Secondary sec:
@@ -258,30 +272,20 @@ public static class RPNETCS {
                         s+= " " + ToStr(sec[i]);
                 }
                 return s;
-            case Int32 i:
-                return i.ToString();
             case Action act:
                 return act.Method.Name;
             default:
-                return "<" + ob.GetType().ToString() + ">";
+                return "<" + ob.GetType().FullName + ">";
         }
     }
 
     //// parts of the parser/compiler
-    static Dictionary<String, Tok> qualifiers = new Dictionary<string, Tok> {
-        { "#", Tok.integer }, // #123 or # 123 or maybe even #b #s #i #l to indicate byte, short, integer, long
-        { "%", Tok.single }, // %123 or % 123
-        { "%%", Tok.extended },
-        { "id", Tok.identifier },
-        { "$", Tok.str },
-    };
-
-    static Dictionary<String, Tok> delimiters = new Dictionary<string, Tok> {
-        { "<>", Tok.type },
-        { "\"\"", Tok.str },
-        { "@", Tok.method },
-        { "!", Tok.get },
-        { "?", Tok.set },
+    static Dictionary<String, Type> type_specifier = new Dictionary<string, Type> {
+        { "#", typeof(System.Int32) }, // #123 or # 123 or maybe even #b #s #i #l to indicate byte, short, integer, long
+        { "%", typeof(System.Single) }, // %123 or % 123
+        { "%%", typeof(System.Double) },
+        { "id", typeof(Identifier) },
+        { "$", typeof(System.String) },
     };
 
     static Dictionary<String, Object> words = new Dictionary<string, Object>  {
@@ -314,34 +318,12 @@ public static class RPNETCS {
         { '"', '"' },
     };
 
-    static Dictionary<Tok, Type> types = new Dictionary<Tok, Type> {
-        { Tok.integer, typeof(int) },
-        { Tok.single, typeof(Single) },
-        { Tok.extended, typeof(Double) },
-        { Tok.str, typeof(String) },
-        { Tok.identifier, typeof(String) },
-    };
-
-    enum Tok {
-        word,
-        integer,
-        single,
-        extended,
-        str,
-        identifier,
-        method,
-        get,
-        set,
-        type,
-        none,
-    }
-
-    enum Lex {
-        white,
-        cstri,
+    enum Estate {
+        whitespace,
+        cstring,
         token,
-        escap,
-        comme,
+        escape,
+        comment,
     }
 
 
@@ -375,10 +357,99 @@ public static class RPNETCS {
     // appended with " ;", parsed and evaluated.
     // this is different from the original behavior of STR->, which is more or less equivalent to entering its argument on the command line.
 
-    // i can't do it. 
     static Secondary StrTo(String str) {
-        return null;
+        List<Object> tokens = new List<object>();
+        Type expect = null;
+        foreach (String term in Split(str)) 
+            if (expect != null) {
+                tokens.Add(CTypeDynamic(term, expect));
+                expect = null;
+            } else if (type_specifier.TryGetValue(term, out expect)) {
+                expect = type_specifier[term];
+            } else if ('<' == term[0] && term.EndsWith(">")) {
+                String typename = term.Substring(1, term.Length - 2);
+                Type t = Type.GetType(typename, false, true);
+                if (t != null) {
+                    tokens.Add(t);
+                } else {
+                    throw new Exception("can't find Type for '" + typename);
+                }
+            } else {
+                if (words.TryGetValue(term, out object ob)) {
+                    tokens.Add(ob);
+                } else {
+                    throw new Exception("unknown term '" + term + "'");
+                }
+            }
+        return new Secondary(tokens);
     }
+
+    static List<String> Split(string str) {
+        List<String> Split = new List<string>();
+        Estate state = Estate.whitespace;
+        String token = "";
+        foreach (Char c in str) {
+            switch (state) {
+                case Estate.whitespace:
+                    if ( '"' == c) {
+                        state = Estate.cstring;
+                        token = "";
+                    } else if ('`' == c) {
+                        state = Estate.comment;
+                    } else if (!Char.IsWhiteSpace(c)) {
+                        state = Estate.token;
+                        token = c.ToString();
+                    }
+                    break;
+                case Estate.cstring:
+                    if ('\\' == c) {
+                        state = Estate.escape;
+                    } else if ('"' == c) {
+                        state = Estate.whitespace;
+                        Split.Add(token);
+                    } else {
+                        token += c;
+                    }
+                    break;
+                case Estate.token:
+                    if (Char.IsWhiteSpace(c)) {
+                        state = Estate.whitespace;
+                        Split.Add(token);
+                    } else {
+                        token += c;
+                    }
+                    break;
+                case Estate.escape:
+                    if (escapes.ContainsKey(c)) {
+                        state = Estate.cstring;
+                        token += escapes[c];
+                    } else {
+                        throw new Exception("bad escape char '" + c + "'");
+                    }
+                    break;
+                case Estate.comment:
+                    if ('\r' == c || '\n' == c) {
+                        state = Estate.whitespace;
+                    }
+                    break;
+            }
+        }
+        switch (state) {
+            case Estate.comment:
+            case Estate.whitespace:
+                //all is ok
+                break;
+            case Estate.token:
+                Split.Add(token);
+                break;
+            default:
+                throw new Exception("expecting " + state.ToString() + ", not '" + token + "'");
+        }
+        return Split;
+
+    }
+
+
 
     // a delegate that can be overwritten so that the calling code can set it to whatever
     public static Action<String> W = (s) => Debug.WriteLine(s);
