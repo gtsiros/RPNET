@@ -2,8 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using Microsoft.VisualBasic;
-
+using System.Dynamic;
 public static class RPNETCS {
     // after i convert this to a normal class (and not a command line program)
     // i will remove all static qualifiers
@@ -56,6 +55,7 @@ public static class RPNETCS {
     }
 
     class Identifier {
+        
         public String name;
         public static explicit operator Identifier(String s) {
             return new Identifier() { name = s };
@@ -125,7 +125,7 @@ public static class RPNETCS {
     // this pushes the next object to the data stack and skips over it in the runstream.
     // in other words, instead of executing it, it pushes it on the stack.
     // that way the program becomes data
-    static void DoTick() {
+    static void DoQuote() {
         // first find what this object is
         int startIndex = IP + 1;
         // SkipOb takes care of skipping over any kind of object (composite or atomic)
@@ -300,7 +300,7 @@ public static class RPNETCS {
         { "drop", _Drop },
         { "dup", _Dup },
         { "eval", _Eval },
-        { "'", (Action)DoTick },
+        { "'", (Action)DoQuote },
     };
 
     // for escaping characters in a string
@@ -362,7 +362,8 @@ public static class RPNETCS {
         Type expect = null;
         foreach (String term in Split(str)) 
             if (expect != null) {
-                tokens.Add(CTypeDynamic(term, expect));
+                dynamic ob;
+                tokens.Add((term, expect));
                 expect = null;
             } else if (type_specifier.TryGetValue(term, out expect)) {
                 expect = type_specifier[term];
