@@ -1,5 +1,6 @@
 ﻿Imports System.Reflection
 Imports System.Diagnostics
+Imports System.Text
 
 Module RPNETVB
     ''parts of the runtime
@@ -23,72 +24,60 @@ Module RPNETVB
     Private _IP As Integer = 0
 
     ' this list is supposed to be 1) dynamic 2) the entire dictionary of available commands
+    ' handled with attributes, but some are still needed 
     Private _DoCol As Action = AddressOf DoCol ' just so i don't carry the cast around
     Private _DoSemi As Action = AddressOf DoSemi
     Private _DoList As Action = AddressOf DoList
     Private _DoSymb As Action = AddressOf DoSymb ' same thing, actually
-    Private _Begin As Action = AddressOf Begin
-    Private _Again As Action = AddressOf Again
-    Private _Until As Action = AddressOf __Until
-    Private _QuitQ As Action = AddressOf QuitQ
-    Private _Drop As Action = AddressOf Drop ' some trivial words 
-    Private _Dup As Action = AddressOf Dup
-    Private _Eval As Action = Sub() Eval(_DS.Pop())
-    Private _StrTo As Action = Sub() Eval(StrTo(_DS.Pop()))
-    Private _Read As Action = AddressOf Read
-    Private _Print As Action = AddressOf Print
-    Sub Dup()
+
+    <AttributeUsage(AttributeTargets.Method, Inherited:=False, AllowMultiple:=True)>
+    Class RPLWord
+        Inherits Attribute
+        Public WordName As String
+        Public Sub New(Optional name As String = "")
+            WordName = name
+        End Sub
+    End Class
+
+    <RPLWord> Sub dup()
         _IP += 1
         _DS.Push(_DS.Peek())
     End Sub
-    Sub Read()
+
+    <RPLWord> Sub read()
         _IP += 1
         _DS.Push(Console.ReadLine())
     End Sub
-    Sub Print()
+
+    <RPLWord> Sub print()
         _IP += 1
         Console.WriteLine(_DS.Pop().ToString)
     End Sub
-    Sub Drop()
+
+    <RPLWord> Sub drop()
         _IP += 1
         _DS.Pop()
     End Sub
-    Enum Estate
-        token
-        whitespace
-        escape
-        cstring
-        comment
-    End Enum
-    Dim escapes As New Dictionary(Of Char, Char) From {{"\"c, "\"c}, {"n"c, Chr(10)}, {"r"c, Chr(13)}, {"t"c, Chr(9)}, {""""c, """"c}}
-    Dim literals As New Dictionary(Of String, Type) From {{"#", GetType(Integer)}, {"%", GetType(Single)}, {"%%", GetType(Double)}, {"$", GetType(String)}, {"@", GetType(Identifier)}}
-    Dim words As New Dictionary(Of String, Object) From {
-         {"::", _DoCol},
-         {";", _DoSemi},
-         {"{", _DoList},
-         {"}", _DoSemi}, ' yes, it has to be this way, this marks the end of the list
-         {"begin", _Begin},
-         {"again", _Again},
-         {"until", _Until},
-         {"quitq", _QuitQ},
-         {"drop", _Drop},
-         {"read", _Read},
-         {"print", _Print},
-         {"dup", _Dup},
-         {"eval", _Eval}
-    }
+
 
     Class Secondary
         Inherits List(Of Object)
-        <DebuggerStepThrough> Sub New(l As IEnumerable(Of Object))
-            MyBase.AddRange(l)
+        <DebuggerStepThrough> Sub New(Optional l As IEnumerable(Of Object) = Nothing)
+            If l IsNot Nothing Then MyBase.AddRange(l)
         End Sub
     End Class
 
     Class Symbolic
         Inherits List(Of Object)
-        <DebuggerStepThrough> Sub New(l As IEnumerable(Of Object))
-            MyBase.AddRange(l)
+        <DebuggerStepThrough> Sub New(Optional l As IEnumerable(Of Object) = Nothing)
+            If l IsNot Nothing Then MyBase.AddRange(l)
+        End Sub
+    End Class
+
+    Class ObList
+        Inherits List(Of Object)
+        <DebuggerStepThrough> Sub New(Optional l As IEnumerable(Of Object) = Nothing)
+            If l IsNot Nothing Then MyBase.AddRange(l)
         End Sub
     End Class
 
@@ -98,10 +87,9 @@ Module RPNETVB
             Return New Identifier With {.name = s}
         End Operator
         ' TODO: add constructor that checks for sane name values
-
     End Class
 
-    Sub DoCol()
+    <RPLWord("::")> Sub DoCol()
         ' at this point, IP points to this here object (DoCol, actually _DoCol)
         ' we start by keeping the index of the next object right after ::
         Dim startIndex As Integer = _IP + 1
@@ -114,23 +102,26 @@ Module RPNETVB
         ' the new secondary begins at the beginning
         _IP = 0
     End Sub
-    Sub DoSemi()
+
+    <RPLWord(";")> Sub DoSemi()
         ' no need to IP++ at the start since we're replacing the current secondary anyway
         ' pop the top secondary from the runstream, and make it the current one
         _SECO = _RS.Pop()
         ' restore the inner secondary's IP
         _IP = _STK.Pop
     End Sub
+
     'doubt we'll ever get here, but why not
-    Sub DoSymb()
+    <RPLWord("sym")> Sub DoSymb()
     End Sub
 
-    Sub DoList()
+    <RPLWord("{")> Sub DoList()
         'same deal as with DoCol the only thing that changes is that the object is pushed on the data stack instead 
         Dim startIndex As Integer = _IP + 1 'keep it, before SkipOb rapes it
         SkipOb()
         _DS.Push(_SECO.GetRange(startIndex, _IP - startIndex)) 'ignore DoList AND DoSemi (it's a list)
     End Sub
+
     Sub SkipOb()
         ' this one iterates over objects, increasing the depth for each prologue that starts a composite
         ' And decreasing it for every semi
@@ -155,13 +146,14 @@ Module RPNETVB
     ' this pushes the next object to the data stack And skips over it in the runstream.
     ' in other words, instead of executing it, it pushes it on the stack.
     ' that way the program becomes data
-    Sub DoQuote()
+    <RPLWord("'")> Sub DoQuote()
         ' first find what this object is
         Dim startIndex As Integer = _IP + 1
         ' SkipOb takes care of skipping over any kind of object (composite or atomic)
         SkipOb()
         If _IP - startIndex > 1 Then
-            ' if we skipped over more than one IP it means we're pushing a composite
+            ' if we skipped over more than one IP it means we skipped over a composite
+            ' which we will push on the DS
 
             Dim ob As Object = _SECO(startIndex)
             If _OB.Equals(_DoCol) Then
@@ -172,17 +164,18 @@ Module RPNETVB
                 _DS.Push(New Symbolic(_SECO.GetRange(startIndex, _IP - startIndex)))
             ElseIf _OB.Equals(_DoList) Then
                 ' ignore "prologue" and semi
-                _DS.Push(New List(Of Object)(_SECO.GetRange(startIndex + 1, _IP - startIndex - 1)))
+                _DS.Push(New ObList(_SECO.GetRange(startIndex + 1, _IP - startIndex - 1)))
             Else
                 Throw New Exception("unknown composite")
             End If
         Else
+            ' push atomic object
             _DS.Push(_SECO(startIndex))
         End If
     End Sub
 
     ' this marks the beginning of a loop
-    Sub Begin()
+    <RPLWord> Sub begin()
         _IP += 1
         _STK.Push(_IP)
     End Sub
@@ -190,7 +183,7 @@ Module RPNETVB
     ' this marks the end of an infinite (not indefinite) loop
     ' currently there is no way to exit this kind of loop.
     ' it would require a way to directly pop the STK
-    Sub Again()
+    <RPLWord> Sub again()
         _IP = _STK.Peek
     End Sub
 
@@ -198,8 +191,8 @@ Module RPNETVB
     ' so
     ' #0 begin dup #1 + dup #10 == until
     ' pushes #0 to #10 on the data stack
-    Sub __Until()
-        If DirectCast(_DS.Pop, Boolean) Then
+    <RPLWord("until")> Sub _Until()
+        If _DS.Pop Then
             _STK.Pop()
             _IP += 1
         Else
@@ -212,55 +205,82 @@ Module RPNETVB
     ' pops the runstream
     ' and inserts the object in the inner secondary at the position of its IP
     ' its purpose is improving tail recursion efficiency
-    Sub Cola()
+    <RPLWord> Sub cola()
         _IP += 1
         Dim ob As Object = _SECO(_IP)
         DoSemi()
         _SECO.Insert(_IP, ob)
     End Sub
-    Sub QuitQ()
-        _IP += 1
-        If DirectCast(_DS.Pop, String) = "" Then _IP = _SECO.Count
+
+    <RPLWord("quit?")> Sub quitq()
+        If _DS.Pop Then _IP = _SECO.Count Else _IP += 1
         ' yes, a total cop-out
     End Sub
 
+    <RPLWord("==")> Sub eq()
+        _IP += 1
+        _DS.Push(_DS.Pop = _DS.Pop)
+    End Sub
+
     Sub Main()
+        ' fill the words Dictionary
+        Dim asRPLWord As RPLWord
+        For Each mi As MethodInfo In GetType(RPNETVB).GetMethods
+            asRPLWord = mi.GetCustomAttribute(GetType(RPLWord))
+            If asRPLWord IsNot Nothing Then
+                words.Add(If(asRPLWord.WordName.Length = 0, mi.Name, asRPLWord.WordName), mi.CreateDelegate(GetType(Action)))
+            End If
+        Next
+
         ' trivial loop
         ' echoes back what is written until nothing is entered
-        Dim str As String = " begin read dup quitq print again ;"
-
+        Dim sb As New StringBuilder
+        For i As Integer = 0 To 1000000
+            sb.Append(" swap")
+        Next
+        Dim str As String = "ticks # 1 # 2" & sb.ToString & "  drop drop ticks swap - print"  ' "begin read dup $ ""Length"" ? # 0 == quit? parse eval print again ;"
         _SECO = StrTo(str)
+        Dim nt As Long = Now.Ticks
         While _IP < _SECO.Count
             _OB = _SECO(_IP)
             Eval()
         End While
+        Console.WriteLine(Now.Ticks - nt)
         Console.WriteLine("done")
         Console.ReadKey()
     End Sub
 
-    Sub Eval(Optional ob As Object = Nothing)
-        If ob Is Nothing Then ob = _OB
-        Dim t As Type = ob.GetType
-        If t Is GetType(Secondary) Then
-            _SECO.Insert(_IP, _DoCol)
-            _SECO.InsertRange(_IP + 1, DirectCast(ob, Secondary))
-        ElseIf t Is GetType(Symbolic) Then
-            _DS.Push(ob)
-        ElseIf t Is GetType(Action) Then
-            DirectCast(ob, Action)()
-        Else
-            _IP += 1
-            _DS.Push(ob)
+    <RPLWord> Sub ticks()
+        _IP += 1
+        _DS.Push(Now.Ticks)
+    End Sub
+
+    Private tAction As Type = GetType(Action)
+
+    <RPLWord("eval")> Sub rpleval()
+        _IP += 1 ' (standard)
+        _OB = _DS.Peek
+        If TypeOf _OB Is Secondary Then
+            _DS.Pop()
+            _RS.Push(_SECO)
+            _STK.Push(_IP)
+            _SECO = _OB
+            _IP = 0 ' implicit prolog
+        ElseIf TypeOf _OB Is Action Then
+            _DS.Pop()
+            DirectCast(_OB, Action)()
         End If
     End Sub
 
-    Dim type_specifier As New Dictionary(Of String, Type) From {
-         {"#", GetType(Integer)}, ' #123 or # 123 or maybe even #b #s #i #l to indicate byte, short, integer, long
-         {"%", GetType(Single)}, ' %123 or % 123
-         {"%%", GetType(Double)},
-         {"@", GetType(Identifier)},
-         {"$", GetType(String)}
-    }
+    Sub Eval()
+        If TypeOf _OB Is Action Then
+            DirectCast(_OB, Action)()
+        Else
+            _DS.Push(_OB)
+            _IP += 1
+        End If
+    End Sub
+
     ' the syntax is pretty simple
     ' a type descript and a sequence of characters like
     ' # 123 ("System.Int32")
@@ -290,6 +310,80 @@ Module RPNETVB
     ' the command line will implicitly be a secondary, that is, the command line will be implicitly prepended with ":: "
     ' appended with " ;", parsed and evaluated.
     ' this is different from the original behavior of STR->, which is more or less equivalent to entering its argument on the command line.
+
+    Dim escapes As New Dictionary(Of Char, Char) From {{"\"c, "\"c}, {"n"c, Chr(10)}, {"r"c, Chr(13)}, {"t"c, Chr(9)}, {""""c, """"c}}
+    Dim literals As New Dictionary(Of String, Type) From {{"#", GetType(Integer)}, {"%", GetType(Single)}, {"%%", GetType(Double)}, {"$", GetType(String)}, {"@", GetType(Identifier)}}
+
+    Dim type_specifier As New Dictionary(Of String, Type) From {
+         {"#", GetType(Integer)}, ' #123 or # 123 or maybe even #b #s #i #l to indicate byte, short, integer, long
+         {"%", GetType(Single)}, ' %123 or % 123
+         {"%%", GetType(Double)},
+         {"id", GetType(Identifier)},
+         {"$", GetType(String)}
+    }
+
+    ' this will be filled at initialization from the <RplWord> methods in this class
+    Dim words As New Dictionary(Of String, Object) From {
+         {"}", _DoSemi} ' yes, it has to be this way, this marks the end of the list
+    }
+
+    <RPLWord("+")> Sub plus()
+        _IP += 1
+        _DS.Push(_DS.Pop + _DS.Pop)
+    End Sub
+
+    <RPLWord("-")> Sub minus()
+        _IP += 1
+        Dim l1 As Object = _DS.Pop
+        Dim l2 As Object = _DS.Pop
+        _DS.Push(l2 - l1)
+    End Sub
+
+    <RPLWord> Sub parse()
+        _IP += 1
+        Dim ob As Object = StrTo(_DS.Pop & " ;")  ' implied prolog
+        _DS.Push(ob)
+    End Sub
+
+    <RPLWord> Sub depth()
+        _IP += 1
+        _DS.Push(_DS.Count)
+    End Sub
+
+    <RPLWord> Sub swap() ' something as trivial as this takes so much time. it's just two pointers. 
+        _IP += 1
+        Dim l1 As Object = _DS.Pop
+        Dim l2 As Object = _DS.Pop
+        _DS.Push(l1)
+        _DS.Push(l2)
+    End Sub
+
+    <RPLWord("!")> Sub PropertySet()
+        _IP += 1
+        Dim propertyName As String = _DS.Pop
+        Dim propertyValue As Object = _DS.Pop
+        CallByName(_DS.Pop, propertyName, CallType.Set, propertyValue)
+    End Sub
+
+    <RPLWord("?")> Sub PropertyGet()
+        _IP += 1
+        Dim propertyName As String = _DS.Pop
+        _DS.Push(CallByName(_DS.Pop, propertyName, CallType.Get))
+    End Sub
+
+    <RPLWord("@")> Sub MethodCall()
+        _IP += 1
+        Dim methodName As String = _DS.Pop
+        Dim args() As Object = DirectCast(_DS.Pop, ObList).ToArray
+        _DS.Push(CallByName(_DS.Pop, methodName, CallType.Method, args))
+    End Sub
+
+    <RPLWord> Sub def()
+        _IP += 1
+        Dim wordName As String = _DS.Pop
+        words.Add(wordName, _DS.Pop)
+    End Sub
+
     Function StrTo(str As String) As Secondary
         Dim tokens As New List(Of Object)
         Dim expect As Type = Nothing
@@ -301,81 +395,81 @@ Module RPNETVB
             ElseIf term(0) = "<"c AndAlso term.EndsWith(">") Then
                 Dim TypeName As String = term.Substring(1, term.Length - 2)
                 Dim t As Type = Type.GetType(TypeName, False, True)
-                If t IsNot Nothing Then
-                    tokens.Add(t)
-                Else
-                    Throw New Exception("can't find Type for '" & TypeName)
-                End If
+                If t IsNot Nothing Then tokens.Add(t) Else Throw New Exception("can't find Type for '" & TypeName)
             Else
                 Dim ob As Object = Nothing
-                If words.TryGetValue(term, ob) Then
-                    tokens.Add(ob)
-                Else
-                    Throw New Exception("unknown term '" + term + "'")
-                End If
+                If words.TryGetValue(term, ob) Then tokens.Add(ob) Else Throw New Exception("unknown term '" + term + "'")
             End If
         Next
         Return New Secondary(tokens)
     End Function
+
+    Enum LexerState
+        token
+        whitespace
+        escape
+        cstring
+        comment
+    End Enum
+
     Function Split(str As String) As List(Of String)
         Split = New List(Of String)
-
-        Dim state As Estate = Estate.whitespace
+        Dim state As LexerState = LexerState.whitespace
         Dim token As String = ""
         For Each c As Char In str
             Select Case state
-                Case Estate.whitespace
+                Case LexerState.whitespace
                     If """"c = c Then
-                        state = Estate.cstring
+                        state = LexerState.cstring
                         token = ""
                     ElseIf "`"c = c Then
-                        state = Estate.comment
+                        state = LexerState.comment
                     ElseIf Not Char.IsWhiteSpace(c) Then
-                        state = Estate.token
+                        state = LexerState.token
                         token = c.ToString
                     End If
-                Case Estate.token
+                Case LexerState.token
                     If Char.IsWhiteSpace(c) Then
                         Split.Add(token)
                         token = ""
-                        state = Estate.whitespace
+                        state = LexerState.whitespace
                     Else
                         token &= c
                     End If
-                Case Estate.cstring
+                Case LexerState.cstring
                     If "\"c = c Then
-                        state = Estate.escape
+                        state = LexerState.escape
                     ElseIf """"c = c Then
                         Split.Add(token)
-                        state = Estate.whitespace
+                        state = LexerState.whitespace
                     Else
                         token &= c
                     End If
-                Case Estate.escape
+                Case LexerState.escape
                     If escapes.ContainsKey(c) Then
                         token &= escapes(c)
-                        state = Estate.cstring
+                        state = LexerState.cstring
                     Else
                         Throw New Exception("bad escape char '" & c & "'")
                     End If
-                Case Estate.comment
+                Case LexerState.comment
                     If Chr(10) = c OrElse Chr(13) = c Then
-                        state = Estate.whitespace
+                        state = LexerState.whitespace
                     End If
             End Select
         Next
         Select Case state
-            Case Estate.comment
-            Case Estate.whitespace
-            'all is ok
-            Case Estate.token
+            Case LexerState.comment ' all is ok
+            Case LexerState.whitespace
+
+            Case LexerState.token
                 Split.Add(token)
             Case Else
                 Throw New Exception("expecting " & state.ToString() & ", not '" & token & "'")
         End Select
     End Function
+
     ' a delegate that can be overwritten so that the calling code can set it to whatever
     Public W As Action(Of String) = Sub(s) Debug.WriteLine(s)
-
 
 End Module
