@@ -6,7 +6,7 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{90FC9D6D-FD68-44E3-8A79-01CF67FB0804}</ProjectGuid>
     <OutputType>Exe</OutputType>
-    <StartupObject>RPNETVB.RPNETVB</StartupObject>
+    <StartupObject>Sub Main</StartupObject>
     <RootNamespace>RPNETVB</RootNamespace>
     <AssemblyName>RPNETVB</AssemblyName>
     <FileAlignment>512</FileAlignment>
@@ -64,6 +64,7 @@
       <DependentUpon>Settings.settings</DependentUpon>
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
     </Compile>
+    <Compile Include="OuterLoop.vb" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="My Project\Resources.resx">

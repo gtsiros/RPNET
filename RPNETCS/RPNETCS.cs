@@ -362,7 +362,6 @@ public static class RPNETCS {
         Type expect = null;
         foreach (String term in Split(str)) 
             if (expect != null) {
-                dynamic ob;
                 tokens.Add((term, expect));
                 expect = null;
             } else if (type_specifier.TryGetValue(term, out expect)) {

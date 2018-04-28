@@ -31,7 +31,7 @@ Module RPNETVB
     Private _RS As Secondary
 
     ' The RunStream. This is where the deeper secondaries are pushed
-    Private _RSSTK As New StackList(Of List(Of Object))
+    Private _RSSTK As New StackList(Of Secondary)
 
     ' return STacK. This is where the deeper IPs are pushed
     Private _IPSTK As New StackList(Of Integer)
@@ -125,7 +125,7 @@ Module RPNETVB
 
     <RPLWord("::")>
     Sub DoCol()
-        ' at this point, IP points to this here object (DoCol, actually _DoCol)
+        ' at this point, IP points to this here object (DoCol)
         ' we start by keeping the index of the next object right after ::
         Dim startIndex As Integer = _IP + 1
         ' make _IP point just past this seco
@@ -268,13 +268,35 @@ Module RPNETVB
     End Sub
 
     <RPLWord("if")> Sub _if()
+        _IP += 1 'advance to next object, always
         If _DS(1) Then
-            _DS.RemoveAt(1)
-            rpleval()
+            _OB = _DS.Pop ' set it as the next object to be executed
+            _DS.Pop() ' pop the flag
+            Eval() '
         Else
-            _IP += 1
-            _DS.RemoveRange(0, 2)
+            _DS.RemoveRange(0, 2) ' pop both 
         End If
+    End Sub
+
+    ' instead of the prolog choosing to execute or push
+    Sub Eval()
+        If TypeOf _OB Is Action Then
+            DirectCast(_OB, Action)()
+        ElseIf TypeOf _OB Is Secondary Then
+            _IPSTK.Push(_IP) 'implicit DoCol
+            _IP = 0
+            _RSSTK.Push(_RS)
+            _RS = _OB
+        Else
+            _DS.Push(_OB)
+            _IP += 1
+        End If
+    End Sub
+
+    <RPLWord("eval")> Sub rpleval()
+        _IP += 1 ' (standard)
+        _OB = _DS.Pop
+        Eval()
     End Sub
 
     Sub Main()
@@ -292,42 +314,55 @@ Module RPNETVB
         ' trivial loop
         ' echoes back what is written until nothing is entered
         '"begin read parse eval depth # 0 == ' :: $ ""stack empty"" print ; ' :: depth # 0 swap do depth ?i - pick print loop ; ifte again"
-        Dim str As String = "begin read parse eval depth # 0 == not ' :: # 1 depth do ?i pick tostr ?i tostr $ "" "" + swap + print loop ; if again "
-        _RS = StrTo(str)
+        Dim str As String = "begin read parse eval depth # 0 == not ' ::  depth # 1 swap do ?i pick tostr ?i tostr $ "" : ""  swap + + print loop ; if again "
+        _RS = StrTo(str) ' _IP = 0 when starting
         While _IP < _RS.Count
             _OB = _RS(_IP)
-            W("==== current object before Eval() ====")
-            W(tostr(_OB))
+
+            'W("==== current object before Eval() ====")
+            'W(tostr(_OB))
+
             Eval()
-            W("==== current object after Eval() ====")
-            W(tostr(_OB))
 
-            W("==== data stack ====")
-            If _DS.Count > 0 Then
-                For i As Integer = _DS.Count - 1 To 0 Step -1
-                    W(i.ToString.PadLeft(4) & ": " & tostr(_DS(i)))
-                Next
-            Else
-                W("   0:")
-            End If
-
-            W("==== runstream ====")
-            For i As Integer = 0 To _RS.Count - 1 ' we can assume it's not empty
-                W(i.ToString.PadLeft(4) & ": " & tostr(_RS(i)) & If(_IP = i, " <---", ""))
-            Next
-
-            W("==== return stack ====")
-            If _RSSTK.Count > 0 Then
-                For l As Integer = 0 To _RSSTK.Count - 1
-                    W("-- level " & l)
-                    Dim lst As List(Of Object) = _RSSTK(l)
-                    For i As Integer = 0 To lst.Count - 1
-                        W(i.ToString.PadLeft(4) & ": " & tostr(lst(i)) & If(i = _IPSTK(l), " <---", ""))
-                    Next
-                Next
-            Else
-                W("(empty)")
-            End If
+            ' dump some info, for debugging purposes -_-
+            'W("==== current object after Eval() ====")
+            'W(tostr(_OB))
+            'W("==== data stack ====")
+            'If _DS.Count > 0 Then
+            '    For i As Integer = _DS.Count - 1 To 0 Step -1
+            '        W(i.ToString.PadLeft(4) & ": " & tostr(_DS(i)))
+            '    Next
+            'Else
+            '    W("   0:")
+            'End If
+            '
+            'W("==== runstream ====")
+            'For i As Integer = 0 To _RS.Count - 1 ' we can assume it's not empty
+            '    W(i.ToString.PadLeft(4) & ": " & tostr(_RS(i)) & If(_IP = i, " <---", ""))
+            'Next
+            '
+            'W("==== return stack ====")
+            'If _RSSTK.Count > 0 Then
+            '    For l As Integer = 0 To _RSSTK.Count - 1
+            '        W("-- level " & l)
+            '        Dim lst As List(Of Object) = _RSSTK(l)
+            '        For i As Integer = 0 To lst.Count - 1
+            '            W(i.ToString.PadLeft(4) & ": " & tostr(lst(i)) & If(i = _IPSTK(l), " <---", ""))
+            '        Next
+            '    Next
+            'Else
+            '    W("(empty)")
+            'End If
+            '
+            'W("==== loop stack ====")
+            'If _LOOPSTK.Count > 0 Then
+            '    W("start: " & _LOOPstart)
+            '    W("index: " & _LOOPindex)
+            '    W("end: " & _LOOPend)
+            '    W("ip: " & _LOOPip)
+            'Else
+            '    W("(empty)")
+            'End If
 
         End While
         Console.ReadLine()
@@ -340,79 +375,6 @@ Module RPNETVB
 
     Private tAction As Type = GetType(Action)
 
-    <RPLWord("eval")> Sub rpleval()
-        _IP += 1 ' (standard)
-        _OB = _DS.Peek
-        If TypeOf _OB Is Secondary Then
-            _DS.Pop()
-            _RSSTK.Push(_RS)
-            _IPSTK.Push(_IP)
-            _RS = _OB
-            _IP = 0 ' explicit prolog
-        ElseIf TypeOf _OB Is Action Then
-            _DS.Pop()
-            DirectCast(_OB, Action)()
-        End If ' else do nothing
-    End Sub
-
-    Sub Eval()
-        If TypeOf _OB Is Action Then
-            DirectCast(_OB, Action)()
-        Else
-            _DS.Push(_OB)
-            _IP += 1
-        End If
-    End Sub
-
-    ' the syntax is pretty simple
-    ' a type descript and a sequence of characters like
-    ' # 123 ("System.Int32")
-    ' % 1.23 ("System.Single")
-    ' %% 1.23456 ("System.Double")
-    ' id foo (identifier)
-    ' $ "character string" OR you can omit doublequotes if there are no spaces
-    ' and no escapes $ fooba\rbaz ("System.String") does NOT have a linefeed character in it
-    ' <type> characters (whatever type is)
-    ' so upon encountering a #, %,%%, id, $, OR a <type>, the parser knows how to interpreted the next token
-    ' and in the case of a string, how to parse it
-    ' should cause the appropriate object to be generated and
-    ' inserted into the secondary under construction
-    ' i know how i implement it seems far from elegant
-    ' but it allows for great flexibility
-    ' i might add typed arrays as follows:
-    ' arrays are typed the same but the literal is like [ characters, ... ]
-    ' so # [ 1,2,3] is an array of integers
-    ' <date> [ 1/1/2010, 1/1/2011] should be an array of Date etc
-
-    ' as is right now, the output is a secondary which will be inserted into the runstream
-    ' it *should* actually process what kind of object it is being generated
-    ' so that whatever object is described in it, will be pushed on the stack
-    ' instead of being executed.
-    ' also, arguments like " # 1 # 2 " which describe *two* objects should be an error condition
-    ' this will be different from how the command line will be treated.
-    ' the command line will implicitly be a secondary, that is, the command line will be implicitly prepended with ":: "
-    ' appended with " ;", parsed and evaluated.
-    ' this is different from the original behavior of STR->, which is more or less equivalent to entering its argument on the command line.
-
-    Dim escapes As New Dictionary(Of Char, Char) From {{"\"c, "\"c}, {"n"c, Chr(10)}, {"r"c, Chr(13)}, {"t"c, Chr(9)}, {""""c, """"c}}
-
-    Dim type_specifier As New Dictionary(Of String, Type) From {
-         {"#", GetType(Integer)}, ' #123 or # 123 or maybe even #b #s #i #l to indicate byte, short, integer, long
-         {"%", GetType(Single)}, ' %123 or % 123
-         {"%%", GetType(Double)},
-         {"id", GetType(Identifier)},
-         {"$", GetType(String)},
-         {"lam", GetType(Lambda)}
-    }
-
-    ' this will be filled at initialization from the <RplWord> methods in this class
-    Dim words As New Dictionary(Of String, Object) From {
-         {"}", _DoSemi}', ' yes, it has to be this way, this marks the end of the list
-    }
-    '{"::", _DoCol},
-    '{";", _DoSemi},
-    '{"{", _DoList},
-    '{"sym", _DoSym}
 
     <RPLWord("+")> Sub plus()
         _IP += 1
@@ -514,6 +476,56 @@ Module RPNETVB
             _LOOPstart = _LOOPSTK.Pop
         End If
     End Sub
+
+    ' the syntax is pretty simple
+    ' a type descript and a sequence of characters like
+    ' # 123 ("System.Int32")
+    ' % 1.23 ("System.Single")
+    ' %% 1.23456 ("System.Double")
+    ' id foo (identifier)
+    ' $ "character string" OR you can omit doublequotes if there are no spaces
+    ' and no escapes $ fooba\rbaz ("System.String") does NOT have a linefeed character in it
+    ' <type> characters (whatever type is)
+    ' so upon encountering a #, %,%%, id, $, OR a <type>, the parser knows how to interpreted the next token
+    ' and in the case of a string, how to parse it
+    ' should cause the appropriate object to be generated and
+    ' inserted into the secondary under construction
+    ' i know how i implement it seems far from elegant
+    ' but it allows for great flexibility
+    ' i might add typed arrays as follows:
+    ' arrays are typed the same but the literal is like [ characters, ... ]
+    ' so # [ 1,2,3] is an array of integers
+    ' <date> [ 1/1/2010, 1/1/2011] should be an array of Date etc
+
+    ' as is right now, the output is a secondary which will be inserted into the runstream
+    ' it *should* actually process what kind of object it is being generated
+    ' so that whatever object is described in it, will be pushed on the stack
+    ' instead of being executed.
+    ' also, arguments like " # 1 # 2 " which describe *two* objects should be an error condition
+    ' this will be different from how the command line will be treated.
+    ' the command line will implicitly be a secondary, that is, the command line will be implicitly prepended with ":: "
+    ' appended with " ;", parsed and evaluated.
+    ' this is different from the original behavior of STR->, which is more or less equivalent to entering its argument on the command line.
+
+    Dim escapes As New Dictionary(Of Char, Char) From {{"\"c, "\"c}, {"n"c, Chr(10)}, {"r"c, Chr(13)}, {"t"c, Chr(9)}, {""""c, """"c}}
+
+    Dim type_specifier As New Dictionary(Of String, Type) From {
+         {"#", GetType(Integer)}, ' #123 or # 123 or maybe even #b #s #i #l to indicate byte, short, integer, long
+         {"%", GetType(Single)}, ' %123 or % 123
+         {"%%", GetType(Double)},
+         {"id", GetType(Identifier)},
+         {"$", GetType(String)},
+         {"lam", GetType(Lambda)}
+    }
+
+    ' this will be filled at initialization from the <RplWord> methods in this class
+    Dim words As New Dictionary(Of String, Object) From {
+         {"}", _DoSemi}', ' yes, it has to be this way, this marks the end of the list
+    }
+    '{"::", _DoCol},
+    '{";", _DoSemi},
+    '{"{", _DoList},
+    '{"sym", _DoSym}
 
     Function StrTo(str As String) As Secondary
         Dim tokens As New List(Of Object)
