@@ -3,7 +3,10 @@ Imports System.Diagnostics
 Imports System.Text
 
 Module RPNETVB
-    ''parts of the runtime
+    ' a delegate that can be overwritten so that the calling code can set it to whatever
+    Public W As Action(Of String) = Sub(s) Console.WriteLine(s)
+
+    ''PARTS OF THE RUNTIME
 
     'the current OBject being executed
     Private _OB As Object
@@ -15,14 +18,14 @@ Module RPNETVB
     ' a list with push and pop in it
     Class StackList(Of T)
         Inherits List(Of T)
-        Public Function Pop() As T
+        <DebuggerStepThrough> Public Function Pop() As T
             Pop = MyBase.Item(0)
             MyBase.RemoveAt(0)
         End Function
-        Public Function Peek() As T
+        <DebuggerStepThrough> Public Function Peek() As T
             Peek = MyBase.Item(0)
         End Function
-        Public Sub Push(v As T)
+        <DebuggerStepThrough> Public Sub Push(v As T)
             MyBase.Insert(0, v)
         End Sub
     End Class
@@ -77,7 +80,7 @@ Module RPNETVB
 
     <RPLWord> Sub print()
         _IP += 1
-        Console.WriteLine(_DS.Pop().ToString)
+        W(_DS.Pop().ToString)
     End Sub
 
     <RPLWord> Sub drop()
@@ -100,24 +103,24 @@ Module RPNETVB
         End Sub
     End Class
 
-    Class ObList
+    Class ObList ' i need an explicit list(of object) as a separate type/class
         Inherits List(Of Object)
         <DebuggerStepThrough> Sub New(Optional l As IEnumerable(Of Object) = Nothing)
             If l IsNot Nothing Then MyBase.AddRange(l)
         End Sub
     End Class
 
-    Class Identifier
+    Class Identifier ' for "global" variables
         Public name As String
-        Public Shared Widening Operator CType(s As String) As Identifier
+        <DebuggerStepThrough> Public Shared Widening Operator CType(s As String) As Identifier
             Return New Identifier With {.name = s}
         End Operator
         ' TODO: add constructor that checks for sane name values
     End Class
 
-    Class Lambda
+    Class Lambda ' for local variables
         Public name As String
-        Public Shared Widening Operator CType(s As String) As Lambda
+        <DebuggerStepThrough> Public Shared Widening Operator CType(s As String) As Lambda
             Return New Lambda With {.name = s}
         End Operator
         ' TODO: add constructor that checks for sane name values
@@ -252,8 +255,8 @@ Module RPNETVB
         _RS.Insert(_IP, ob)
     End Sub
 
-    <RPLWord("quit?")> Sub quitq()
-        If _DS.Pop Then _IP = _RS.Count Else _IP += 1
+    <RPLWord("end")> Sub _end()
+        _IP = _RS.Count
         ' yes, a total cop-out
     End Sub
 
@@ -278,12 +281,25 @@ Module RPNETVB
         End If
     End Sub
 
+    <RPLWord> Sub ifte()
+        '_IP += 1
+        If _DS(2) Then
+            _OB = _DS(1)
+        Else
+            _OB = _DS(0)
+        End If
+        _DS.RemoveRange(0, 3)
+        Eval()
+    End Sub
+
     ' instead of the prolog choosing to execute or push
     Sub Eval()
+        'W("==== current object before Eval() ====")
+        'W("-> " & tostr(_OB))
         If TypeOf _OB Is Action Then
             DirectCast(_OB, Action)()
         ElseIf TypeOf _OB Is Secondary Then
-            _IPSTK.Push(_IP) 'implicit DoCol
+            _IPSTK.Push(_IP + 1) 'implicit DoCol
             _IP = 0
             _RSSTK.Push(_RS)
             _RS = _OB
@@ -299,9 +315,13 @@ Module RPNETVB
         Eval()
     End Sub
 
+    <RPLWord("tostr")> Sub _tostr()
+        _IP += 1
+        _DS.Push(tostr(_DS.Pop))
+    End Sub
+
     Sub Main()
         ' fill the words Dictionary
-        Dim nt As Long = Now.Ticks
         Dim asRPLWord As RPLWord
         For Each mi As MethodInfo In GetType(RPNETVB).GetMethods
             asRPLWord = mi.GetCustomAttribute(GetType(RPLWord))
@@ -309,60 +329,84 @@ Module RPNETVB
                 words.Add(If(asRPLWord.WordName.Length = 0, mi.Name, asRPLWord.WordName), mi.CreateDelegate(GetType(Action)))
             End If
         Next
-        Debug.WriteLine(Now.Ticks - nt)
-        Debug.WriteLine("done")
-        ' trivial loop
-        ' echoes back what is written until nothing is entered
-        '"begin read parse eval depth # 0 == ' :: $ ""stack empty"" print ; ' :: depth # 0 swap do depth ?i - pick print loop ; ifte again"
-        Dim str As String = "begin read parse eval depth # 0 == not ' ::  depth # 1 swap do ?i pick tostr ?i tostr $ "" : ""  swap + + print loop ; if again "
+        ' trivial read-eval-print (outer) loop
+        Dim str As String = " 
+            begin               ` infinite loop (this is a comment)
+            read                ` push user-input string from console input to data stack (the 'read' part of read-eval-print)
+            parse               ` parse the string, returns the object(2) and true(1) if successful or string(2) and false(1) if not
+            ' print             ` if zero it will print the parser's error message
+            ' ::                ` push the following program on the data stack
+                eval            ` evaluate whatever is on the stack (the 'eval' part of read-eval-print)
+                depth           ` push number of items 
+                # 0             ` push zero
+                ==              ` compare
+                ' ::            ` push a program that prints out the stack items (in reverse, sadly)
+                    depth       ` how many are there?
+                    # 0         ` end to # 1
+                    do          ` begin loop
+                    ?i          ` push current index on the stack
+                    pick        ` pick the item from the stack 
+                    tostr       ` 
+                    ?i          ` again,
+                    tostr
+                    $ "" : ""   ` prepend some punctuation
+                    swap        ` make it so the punctuation comes after the stack number
+                    +
+                    +
+                    print       ` print it
+                    # -1
+                    step
+                    ;
+                if
+                ;
+            ifte
+            again"
         _RS = StrTo(str) ' _IP = 0 when starting
         While _IP < _RS.Count
             _OB = _RS(_IP)
 
-            'W("==== current object before Eval() ====")
-            'W(tostr(_OB))
 
             Eval()
 
             ' dump some info, for debugging purposes -_-
-            'W("==== current object after Eval() ====")
-            'W(tostr(_OB))
-            'W("==== data stack ====")
-            'If _DS.Count > 0 Then
-            '    For i As Integer = _DS.Count - 1 To 0 Step -1
-            '        W(i.ToString.PadLeft(4) & ": " & tostr(_DS(i)))
-            '    Next
-            'Else
-            '    W("   0:")
-            'End If
-            '
-            'W("==== runstream ====")
-            'For i As Integer = 0 To _RS.Count - 1 ' we can assume it's not empty
-            '    W(i.ToString.PadLeft(4) & ": " & tostr(_RS(i)) & If(_IP = i, " <---", ""))
-            'Next
-            '
-            'W("==== return stack ====")
-            'If _RSSTK.Count > 0 Then
-            '    For l As Integer = 0 To _RSSTK.Count - 1
-            '        W("-- level " & l)
-            '        Dim lst As List(Of Object) = _RSSTK(l)
-            '        For i As Integer = 0 To lst.Count - 1
-            '            W(i.ToString.PadLeft(4) & ": " & tostr(lst(i)) & If(i = _IPSTK(l), " <---", ""))
-            '        Next
-            '    Next
-            'Else
-            '    W("(empty)")
-            'End If
-            '
-            'W("==== loop stack ====")
-            'If _LOOPSTK.Count > 0 Then
-            '    W("start: " & _LOOPstart)
-            '    W("index: " & _LOOPindex)
-            '    W("end: " & _LOOPend)
-            '    W("ip: " & _LOOPip)
-            'Else
-            '    W("(empty)")
-            'End If
+            W("==== current object after Eval() ====")
+            W("-> " & tostr(_OB))
+            W("==== data stack ====")
+            If _DS.Count > 0 Then
+                For i As Integer = _DS.Count - 1 To 0 Step -1
+                    W(i.ToString.PadLeft(4) & ": " & tostr(_DS(i)))
+                Next
+            Else
+                W("(empty)")
+            End If
+
+            W("==== runstream ====")
+            For i As Integer = 0 To _RS.Count - 1 ' we can assume it's not empty
+                W(i.ToString.PadLeft(4) & ": " & tostr(_RS(i)) & If(_IP = i, " <---", ""))
+            Next
+
+            W("==== return stack ====")
+            If _RSSTK.Count > 0 Then
+                For l As Integer = 0 To _RSSTK.Count - 1
+                    W("-- level " & l)
+                    Dim lst As List(Of Object) = _RSSTK(l)
+                    For i As Integer = 0 To lst.Count - 1
+                        W(i.ToString.PadLeft(4) & ": " & tostr(lst(i)) & If(i = _IPSTK(l), " <---", ""))
+                    Next
+                Next
+            Else
+                W("(empty)")
+            End If
+
+            W("==== loop stack ====")
+            If _LOOPSTK.Count > 0 Then
+                W("start: " & _LOOPstart)
+                W("index: " & _LOOPindex)
+                W("end: " & _LOOPend)
+                W("ip: " & _LOOPip)
+            Else
+                W("(empty)")
+            End If
 
         End While
         Console.ReadLine()
@@ -390,8 +434,14 @@ Module RPNETVB
 
     <RPLWord> Sub parse()
         _IP += 1
-        Dim ob As Object = StrTo(_DS.Pop & " ;")  ' implied prolog
-        _DS.Push(ob)
+        Try
+            Dim ob As Object = StrTo(_DS.Pop & " ;")  ' implied prolog
+            _DS.Push(ob)
+            _DS.Push(True)
+        Catch ex As Exception
+            _DS.Push(ex.Message)
+            _DS.Push(False)
+        End Try
     End Sub
 
     <RPLWord> Sub depth()
@@ -426,6 +476,7 @@ Module RPNETVB
         _DS.Push(CallByName(_DS.Pop, methodName, CallType.Method, args))
     End Sub
 
+    ' defines a new word
     <RPLWord> Sub def()
         _IP += 1
         Dim wordName As String = _DS.Pop
@@ -434,7 +485,7 @@ Module RPNETVB
 
     <RPLWord> Sub pick()
         _IP += 1
-        _DS.Push(_DS(_DS.Pop - 1))
+        _DS.Push(_DS(_DS.Pop - 1)) ' in RPL, the top level stack is numbered "1" so # 1 pick is equivalent to dup
     End Sub
 
     ' pushes the topmost loop index on the stack
@@ -450,9 +501,13 @@ Module RPNETVB
         _DS.Push(If(i = 0, _LOOPindex, _LOOPSTK(4 * (i - 1))))
     End Sub
 
+
+    ' start end do foo loop
+    ' will "foo" with index values from start to end
+    ' executes at least once
+
     <RPLWord("do")> Sub loopbegin()
         _IP += 1
-
         _LOOPSTK.Push(_LOOPstart) ' save current loop data
         _LOOPSTK.Push(_LOOPend) ' save current loop data
         _LOOPSTK.Push(_LOOPip) ' save current loop data
@@ -464,18 +519,35 @@ Module RPNETVB
     End Sub
 
     ' should optimize this later on
-    <RPLWord("loop")> Sub loopend()
-        If _LOOPindex < _LOOPend Then
-            _LOOPindex += 1
-            _IP = _LOOPip
-        Else
-            _IP += 1
+    <RPLWord("loop")> Sub _loop()
+        _LOOPindex += 1 ' increment
+        If _LOOPindex = _LOOPend Then
+            _IP += 1 ' go past "loop"
             _LOOPindex = _LOOPSTK.Pop
             _LOOPip = _LOOPSTK.Pop
             _LOOPend = _LOOPSTK.Pop
             _LOOPstart = _LOOPSTK.Pop
+        Else
+            _IP = _LOOPip ' and go back to the object after "do"
         End If
     End Sub
+
+    ' same as loop but takes the step from the stack
+    <RPLWord("step")> Sub _step()
+        _LOOPindex += _DS.Pop ' change
+        If _LOOPindex = _LOOPend Then
+            _IP += 1 ' go past "loop"
+            _LOOPindex = _LOOPSTK.Pop
+            _LOOPip = _LOOPSTK.Pop
+            _LOOPend = _LOOPSTK.Pop
+            _LOOPstart = _LOOPSTK.Pop
+        Else
+            _IP = _LOOPip ' and go back to the object after "do"
+        End If
+    End Sub
+
+
+    '' 
 
     ' the syntax is pretty simple
     ' a type descript and a sequence of characters like
@@ -483,25 +555,23 @@ Module RPNETVB
     ' % 1.23 ("System.Single")
     ' %% 1.23456 ("System.Double")
     ' id foo (identifier)
-    ' $ "character string" OR you can omit doublequotes if there are no spaces
-    ' and no escapes $ fooba\rbaz ("System.String") does NOT have a linefeed character in it
-    ' <type> characters (whatever type is)
-    ' so upon encountering a #, %,%%, id, $, OR a <type>, the parser knows how to interpreted the next token
+    ' $ "character string" OR you can omit doublequotes if there are no spaces...
+    ' ...and no escapes: $ fooba\tbaz ("System.String") does NOT have a tab character in it
+    ' <type> (whatever type is, like <system.windows.forms.form> or whatnot
+    ' so upon encountering a #, %,%%, id or $ the parser knows how to interpreted the next token 
     ' and in the case of a string, how to parse it
-    ' should cause the appropriate object to be generated and
-    ' inserted into the secondary under construction
-    ' i know how i implement it seems far from elegant
-    ' but it allows for great flexibility
+    ' should cause the appropriate object to be generated and inserted into the secondary under construction
+    ' i know how i implement it seems far from elegant but it allows for great flexibility
     ' i might add typed arrays as follows:
     ' arrays are typed the same but the literal is like [ characters, ... ]
-    ' so # [ 1,2,3] is an array of integers
-    ' <date> [ 1/1/2010, 1/1/2011] should be an array of Date etc
-
+    ' so # [ 1,2,3] would be an array of integers
+    ' i might extend this to <type> pushing just the type
+    ' while {type} "stuff" causing the "stuff" string to be parsed according to {type}
+    ' eg {date} [1/1/2000, 2/2/2000, 3/3/2000] etc
     ' as is right now, the output is a secondary which will be inserted into the runstream
     ' it *should* actually process what kind of object it is being generated
-    ' so that whatever object is described in it, will be pushed on the stack
-    ' instead of being executed.
-    ' also, arguments like " # 1 # 2 " which describe *two* objects should be an error condition
+    ' so that whatever object is described in it, will be pushed on the stack instead of being executed.
+    ' also, arguments like " # 1 # 2 " which describe *two* objects "should" be an error condition
     ' this will be different from how the command line will be treated.
     ' the command line will implicitly be a secondary, that is, the command line will be implicitly prepended with ":: "
     ' appended with " ;", parsed and evaluated.
@@ -612,11 +682,9 @@ Module RPNETVB
         End Select
     End Function
 
-    <RPLWord("tostr")> Sub _tostr()
-        _IP += 1
-        _DS.Push(tostr(_DS.Pop))
-    End Sub
-
+    ' one of the most important aspects of RPL is that strto(tostr(ob)) should be IDENTICAL to ob
+    ' this isn't always true, yet
+    ' also, i wrote this completely haphazardly so it might be simply wrong
     Function tostr(ob As Object) As String
         Dim ty As Type = ob.GetType
         Dim ts As String = ""
@@ -646,7 +714,5 @@ Module RPNETVB
     End Function
 
 
-    ' a delegate that can be overwritten so that the calling code can set it to whatever
-    Public W As Action(Of String) = Sub(s) Debug.WriteLine(s)
 
 End Module
