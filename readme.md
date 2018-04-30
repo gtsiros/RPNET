@@ -1,4 +1,19 @@
-# not ready
+# Quick Demo
+
+Load it, run it, a console should open.
+write (spaces between **\#** and the numbers are *required*):
+
+**\# 1 \# 2 +**
+
+congrats you performed addition
+
+**\# 1 \# 10 do ?i loop**
+
+now you have 11 items on the stack
+
+**\# 1 \# 11 do drop loop**
+
+now they're gone
 
 # RPNET
 RPN system based around .net
