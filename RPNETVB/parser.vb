@@ -31,7 +31,7 @@ Partial Module RPNETVB
             End If
         Next
         If tokens.Count = 0 Then Throw New Exception("null input")
-        If tokens(0).Equals(_DoCol) OrElse tokens.Equals(_DoList) OrElse tokens.Equals(_DoSym) Then
+        If tokens(0).Equals(_DoCol) OrElse tokens(0).Equals(_DoList) OrElse tokens(0).Equals(_DoSym) Then
             If tokens.Count < 2 Then Throw New Exception("expecting more tokens")
             If Not tokens(tokens.Count - 1).Equals(_DoSemi) Then Throw New Exception("expected semi/endlist, found '" & tostr(tokens(tokens.Count - 1)) & "'")
             If tokens(0).Equals(_DoCol) Then

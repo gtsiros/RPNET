@@ -6,6 +6,9 @@ Partial Module RPNETVB
     Private _DoList As Action = AddressOf DoList
     Private _DoSym As Action = AddressOf DoSym ' same thing, actually
 
+    ''' <summary>
+    ''' pops the data stack into the next object to be evaluated
+    ''' </summary>
     <RPLWord("eval")> Sub rpleval()
         _OB = _DS.Pop
         'Eval()
