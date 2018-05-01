@@ -288,4 +288,76 @@ Partial Module RPNETVB
         _IP += 1
         _OB = _RS(_IP)
     End Sub
+
+    <RPLWord("@")> Sub methodcall()
+        Dim methodname As String = _DS.Pop
+        Dim args() As Object = New Object() {}
+        Dim argtypes() As Type = New Type() {}
+        If TypeOf _DS(0) Is ObList Then
+            args = DirectCast(_DS.Pop, ObList).ToArray
+            argtypes = Type.GetTypeArray(args)
+        End If
+        Dim ob As Object = _DS.Pop
+        Dim ty As Type = ob.GetType
+        Dim mi As MethodInfo = ty.GetMethod(methodname, BindingFlags.Public Or BindingFlags.Instance, Nothing, argtypes, Nothing)
+        If mi Is Nothing Then mi = ty.GetMethod(methodname, BindingFlags.Public Or BindingFlags.Static, Nothing, argtypes, Nothing)
+        If mi Is Nothing Then Stop
+        Dim resob As Object = mi.Invoke(ob, args)
+        If mi.ReturnType IsNot GetType(Void) Then _DS.Push(resob)
+        _IP += 1
+        _OB = _RS(_IP)
+    End Sub
+
+    ''' <summary>
+    ''' 2: Object ob
+    ''' 1: String fieldname
+    ''' pops both arguments, 
+    ''' returns value of field with that name
+    ''' </summary>
+    <RPLWord("?")> Sub fieldrecall()
+        Dim fieldname As String = _DS.Pop
+        Dim ob As Object = _DS.Pop
+        If TypeOf ob Is Type Then
+            Dim ty As Type = DirectCast(ob, Type)
+            Dim fi As FieldInfo = ty.GetField(fieldname, BindingFlags.Static Or BindingFlags.Public)
+            If fi IsNot Nothing Then
+                _DS.Push(fi.GetValue(ob))
+            Else
+                Dim pi As PropertyInfo = ty.GetProperty(fieldname, BindingFlags.Static Or BindingFlags.Public)
+                If pi IsNot Nothing Then
+                    _DS.Push(pi.GetValue(ob))
+                Else
+                    _DS.Push(Nothing)
+                End If
+            End If
+        Else
+            _DS.Push(Interaction.CallByName(ob, fieldname, CallType.Get))
+        End If
+        _IP += 1
+        _OB = _RS(_IP)
+    End Sub
+
+    <RPLWord("!")> Sub bang()
+        Dim fieldname As String = _DS.Pop
+        Dim newvalue As Object = _DS.Pop
+        Dim ob As Object = _DS.Pop
+        Interaction.CallByName(ob, fieldname, CallType.Set, newvalue)
+        _IP += 1
+        _OB = _RS(_IP)
+    End Sub
+
+    <RPLWord("new")> Sub _new()
+        Dim args() As Object = New Object() {}
+        Dim argtypes() As Type = New Type() {}
+        If TypeOf _DS(0) Is ObList Then
+            args = DirectCast(_DS.Pop, ObList).ToArray
+            argtypes = Type.GetTypeArray(args)
+        End If
+        Dim ty As Type = _DS.Pop
+        Dim ob As Object = ty.Assembly.CreateInstance(ty.FullName, True, BindingFlags.CreateInstance, Nothing, args, Nothing, Nothing)
+        _DS.Push(ob)
+        _DS.Push(ob IsNot Nothing)
+        _IP += 1
+        _OB = _RS(_IP)
+    End Sub
 End Module

@@ -25,7 +25,13 @@ Partial Module RPNETVB
             ElseIf term(0) = "<"c AndAlso term.EndsWith(">") Then
                 Dim TypeName As String = term.Substring(1, term.Length - 2)
                 Dim t As Type = Type.GetType(TypeName, False, True)
-                If t IsNot Nothing Then tokens.Add(t) Else Throw New Exception("can't find Type for '" & TypeName)
+                If t Is Nothing Then
+                    For Each asm As Assembly In AppDomain.CurrentDomain.GetAssemblies
+                        t = asm.GetType(TypeName, False, True)
+                        If t IsNot Nothing Then Exit For
+                    Next
+                End If
+                If t IsNot Nothing Then tokens.Add(t) Else Throw New Exception("can't find Type for '" & TypeName & "'")
             ElseIf words.TryGetValue(term, ob) Then
                 tokens.Add(ob)
                 'ElseIf term(0) = "@"c OrElse term(0) = "?"c OrElse term(0) = "!"c Then
@@ -150,7 +156,8 @@ Partial Module RPNETVB
         'If TypeOf ob Is FieldRecall Then Return "?" & DirectCast(ob, FieldRecall).fieldname
         'If TypeOf ob Is FieldStore Then Return "!" & DirectCast(ob, FieldStore).fieldname
         'whatever it is, it is unhandled by us
-        Return ob.ToString & ", <" & ty.FullName & ">"
+        'If TypeOf ob Is Array Then Return "<" & ty.FullName & ">"
+        Return "<" & ty.FullName & ">"
     End Function
 
 End Module

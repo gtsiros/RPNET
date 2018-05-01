@@ -1,8 +1,10 @@
 ﻿Imports System.Reflection
 Imports System.Diagnostics
 Imports System.Text
+Imports System.Windows
 
 Module RPNETVB
+
     Dim words As New Dictionary(Of String, Object)
     Public W As Action(Of String) = Sub(s) Console.WriteLine(s)
     Private _OB As Object
@@ -31,6 +33,10 @@ Module RPNETVB
     End Sub
 
     Sub Main()
+        'For Each asm As Assembly In AppDomain.CurrentDomain.GetAssemblies
+        '    Debug.WriteLine(asm.FullName)
+        'Next
+
         'adds all the methods marked RPLWord to the dictionary
         For Each mi As MethodInfo In GetType(RPNETVB).GetMethods
             Dim asRPLWord As RPLWord = mi.GetCustomAttribute(GetType(RPLWord))
@@ -40,7 +46,7 @@ Module RPNETVB
         words.Add("}", GetType(RPNETVB).GetMethod("DoSemi").CreateDelegate(GetType(Action)))
 
         Dim str As String = ""
-        _RS = New Secondary({
+        _RS = New Secondary({ ' this can be done much simpler, but i hacked it as i went. remember, we're changing the system while we're using it
             words("begin"),
             words("read"),
             words("parse"),
@@ -70,7 +76,9 @@ Module RPNETVB
             words("-"),
             words("pick"),
             words("tostr"),
+            words("depth"),
             words("i?"),
+            words("-"),
             words("tostr"),
             ": ",
             words("+"),
@@ -85,18 +93,10 @@ Module RPNETVB
             words("again")
         })
         _OB = _RS(_IP)
-        Do
-            'If _OB IsNot Nothing Then Debug.WriteLine(tostr(_OB))
-            'Debug.WriteLine(New String("=", 80))
-            'If _DS.Count > 0 Then
-            '    For i As Integer = _DS.Count - 1 To 0 Step -1
-            '        Debug.WriteLine(i.ToString().PadLeft(4) & ":" & tostr(_DS(i)).PadLeft(75))
-            '    Next
-            'End If
-
+        Do ' this is the "inner loop"
             If TypeOf _OB Is Action Then
                 DirectCast(_OB, Action)()
-            ElseIf TypeOf _OB Is Secondary Then
+            ElseIf TypeOf _OB Is Secondary Then ' for when a secondary is evaluated from the data stack
                 _IPSTK.Push(_IP + 1) 'implicit DoCol
                 _IP = 0
                 _RSSTK.Push(_RS)
@@ -107,38 +107,10 @@ Module RPNETVB
                 _IP += 1
                 _OB = _RS(_IP)
             End If
-
         Loop Until quit
         Console.WriteLine("done")
         Console.ReadKey()
     End Sub
 
-    <RPLWord("@")> Sub methodcall()
-        Dim methodname As String = _DS.Pop
-        Dim ob As Object = Nothing
-        Dim ty As Type
-        Dim args() As Object = New Object() {}
-        Dim argtypes() As Type = New Type() {}
-        If TypeOf _DS(0) Is ObList Then
-            args = DirectCast(_DS.Pop, ObList).ToArray
-            argtypes = Array.ConvertAll(args, Function(o) o.GetType)
-        End If
-        ob = _DS.Pop
-        Dim bf As BindingFlags
-        If TypeOf ob Is Type Then
-            ty = DirectCast(ob, Type)
-            ob = Nothing
-            bf = BindingFlags.Public Or BindingFlags.Static
-        Else
-            bf = BindingFlags.Public Or BindingFlags.Instance
-            ty = ob.GetType
-        End If
-
-        Dim mi As MethodInfo = ty.GetMethod(methodname, bf, Nothing, argtypes, Nothing)
-        Dim resob As Object = mi.Invoke(ob, args)
-        If mi.ReturnType IsNot GetType(Void) Then _DS.Push(resob)
-        _IP += 1
-        _OB = _RS(_IP)
-    End Sub
 
 End Module
