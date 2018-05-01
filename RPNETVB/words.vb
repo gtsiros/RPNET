@@ -177,8 +177,8 @@ Partial Module RPNETVB
 
     <RPLWord> Sub print()
         _IP += 1
-        W(tostr(_DS.Pop()))
         _OB = _RS(_IP)
+        If TypeOf _DS.Peek Is String Then W(_DS.Pop) Else W(tostr(_DS.Pop()))
     End Sub
 
     <RPLWord> Sub drop()
@@ -190,7 +190,7 @@ Partial Module RPNETVB
     <RPLWord("{")> Sub DoList()
         Dim startIndex As Integer = _IP + 1 'keep it, before SkipOb rapes it
         SkipOb()
-        _DS.Push(_RS.GetRange(startIndex, _IP - startIndex)) 'ignore DoList AND DoSemi (it's a list)
+        _DS.Push(New ObList(_RS.GetRange(startIndex, _IP - startIndex - 1))) 'ignore DoList AND DoSemi (it's a list)
         _OB = _RS(_IP)
     End Sub
 
@@ -269,4 +269,23 @@ Partial Module RPNETVB
         _DS.Push(comp.Count)
     End Sub
 
+    ' copout for now
+    <RPLWord("substr")> Sub _substr()
+        _IP += 1
+        _OB = _RS(_IP)
+        _DS.Push(DirectCast(_DS(1), String).Substring(_DS(0)))
+        _DS.RemoveRange(1, 2)
+    End Sub
+
+    <RPLWord> Sub define()
+        _IP += 1
+        _OB = _RS(_IP)
+        If words.ContainsKey(_DS(0)) Then words(_DS(0)) = _DS(1) Else words.Add(_DS(0), _DS(1))
+        _DS.RemoveRange(0, 2)
+    End Sub
+
+    <RPLWord> Sub rcl()
+        _IP += 1
+        _OB = _RS(_IP)
+    End Sub
 End Module

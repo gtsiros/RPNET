@@ -72,10 +72,12 @@ Module RPNETVB
             words("tostr"),
             words("i?"),
             words("tostr"),
-            " : ",
+            ": ",
             words("+"),
             words("swap"),
             words("+"),
+            2,
+            words("substr"),
             words("print"),
             words("loop"),
             words(";"),
@@ -99,6 +101,10 @@ Module RPNETVB
                 _IP = 0
                 _RSSTK.Push(_RS)
                 _RS = _OB
+                _OB = _RS(_IP)
+            ElseIf TypeOf _OB Is MethodCall Then
+                ' something
+                _IP += 1
                 _OB = _RS(_IP)
             Else
                 _DS.Push(_OB)

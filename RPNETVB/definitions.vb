@@ -27,6 +27,18 @@ Partial Module RPNETVB
 
     MustInherit Class Composite
         Inherits List(Of Object)
+        Public Shared Operator +(a As Composite, b As Object) As Composite
+            a.Add(b)
+            Return a
+        End Operator
+        Public Shared Operator +(a As Composite, b As Composite) As Composite
+            a.AddRange(b)
+            Return a
+        End Operator
+        Public Shared Operator +(a As Object, b As Composite) As Composite
+            b.Insert(0, a)
+            Return b
+        End Operator
     End Class
 
     Class Secondary
@@ -48,6 +60,10 @@ Partial Module RPNETVB
         <DebuggerStepThrough> Sub New(Optional l As IEnumerable(Of Object) = Nothing)
             If l IsNot Nothing Then MyBase.AddRange(l)
         End Sub
+    End Class
+
+    Class MethodCall
+        Public methodname As String
     End Class
 
 End Module

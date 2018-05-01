@@ -16,6 +16,7 @@ Partial Module RPNETVB
         StrTo = Nothing
         Dim tokens As New List(Of Object)
         Dim expect As Type = Nothing
+        Dim ob As Object = Nothing
         For Each term As String In Split(str)
             If expect IsNot Nothing Then
                 tokens.Add(CTypeDynamic(term, expect))
@@ -25,9 +26,21 @@ Partial Module RPNETVB
                 Dim TypeName As String = term.Substring(1, term.Length - 2)
                 Dim t As Type = Type.GetType(TypeName, False, True)
                 If t IsNot Nothing Then tokens.Add(t) Else Throw New Exception("can't find Type for '" & TypeName)
-            Else
-                Dim ob As Object = Nothing
-                If words.TryGetValue(term, ob) Then tokens.Add(ob) Else Throw New Exception("unknown term '" + term + "'")
+            ElseIf words.TryGetValue(term, ob) Then
+                tokens.Add(ob)
+            ElseIf term(0) = "@"c OrElse term(0) = "?"c OrElse term(0) = "!"c Then
+                If term.Length > 1 Then
+                    Select Case term(0)
+                        Case "@"c ' method call
+                            tokens.Add(New MethodCall With {.methodname = term.Substring(1)})
+                            ' i will implement these after i succeed in implementing method call
+                        Case "?"c
+                        Case "!"c
+                    End Select
+                Else
+                    Throw New Exception("'" & term(0) & "' must be followed with something")
+                End If
+            Else Throw New Exception("unknown term '" + term + "'")
             End If
         Next
         If tokens.Count = 0 Then Throw New Exception("null input")
@@ -42,7 +55,7 @@ Partial Module RPNETVB
                 StrTo = New Symbolic(tokens.Skip(1)) ' include its semi
             End If
         ElseIf tokens.Count > 1 Then
-            Throw New Exception("composite implied, but can't start with '" & tostr(tokens(0)) & "'")
+            Throw New Exception("composite implied, but can't start any with '" & tostr(tokens(0)) & "'")
         Else
             StrTo = tokens(0)
         End If
@@ -117,7 +130,7 @@ Partial Module RPNETVB
         Next
         If ts.Length > 0 Then Return ts & " " & ob.ToString
 
-        If ty = GetType(Action) Then
+        If TypeOf ob Is Action Then
             Dim act As Action = DirectCast(ob, Action)
             If act.Method IsNot Nothing Then
                 Dim mi As MethodInfo = act.Method
@@ -128,9 +141,10 @@ Partial Module RPNETVB
             Return act.ToString
         End If
 
-        If ty = GetType(Type) Then Return "<" & DirectCast(ob, Type).FullName & ">"
-        If ty = GetType(Secondary) Then Return ":: " & String.Join(" ", DirectCast(ob, Secondary).ConvertAll(Function(o) tostr(o)))
-
+        If TypeOf ob Is Type Then Return "<" & DirectCast(ob, Type).FullName & ">"
+        If TypeOf ob Is Secondary Then Return ":: " & String.Join(" ", DirectCast(ob, Secondary).ConvertAll(Function(o) tostr(o)))
+        If TypeOf ob Is ObList Then Return "{ " & String.Join(" ", DirectCast(ob, ObList).ConvertAll(Function(o) tostr(o))) & " }"
+        If TypeOf ob Is MethodCall Then Return "@" & DirectCast(ob, MethodCall).methodname
         Return ob.ToString & ", <" & ty.FullName & ">"
     End Function
 
