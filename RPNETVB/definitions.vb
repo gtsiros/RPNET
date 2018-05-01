@@ -61,9 +61,4 @@ Partial Module RPNETVB
             If l IsNot Nothing Then MyBase.AddRange(l)
         End Sub
     End Class
-
-    Class MethodCall
-        Public methodname As String
-    End Class
-
 End Module

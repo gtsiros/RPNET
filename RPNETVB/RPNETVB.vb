@@ -102,10 +102,6 @@ Module RPNETVB
                 _RSSTK.Push(_RS)
                 _RS = _OB
                 _OB = _RS(_IP)
-            ElseIf TypeOf _OB Is MethodCall Then
-                ' something
-                _IP += 1
-                _OB = _RS(_IP)
             Else
                 _DS.Push(_OB)
                 _IP += 1
@@ -117,5 +113,32 @@ Module RPNETVB
         Console.ReadKey()
     End Sub
 
+    <RPLWord("@")> Sub methodcall()
+        Dim methodname As String = _DS.Pop
+        Dim ob As Object = Nothing
+        Dim ty As Type
+        Dim args() As Object = New Object() {}
+        Dim argtypes() As Type = New Type() {}
+        If TypeOf _DS(0) Is ObList Then
+            args = DirectCast(_DS.Pop, ObList).ToArray
+            argtypes = Array.ConvertAll(args, Function(o) o.GetType)
+        End If
+        ob = _DS.Pop
+        Dim bf As BindingFlags
+        If TypeOf ob Is Type Then
+            ty = DirectCast(ob, Type)
+            ob = Nothing
+            bf = BindingFlags.Public Or BindingFlags.Static
+        Else
+            bf = BindingFlags.Public Or BindingFlags.Instance
+            ty = ob.GetType
+        End If
+
+        Dim mi As MethodInfo = ty.GetMethod(methodname, bf, Nothing, argtypes, Nothing)
+        Dim resob As Object = mi.Invoke(ob, args)
+        If mi.ReturnType IsNot GetType(Void) Then _DS.Push(resob)
+        _IP += 1
+        _OB = _RS(_IP)
+    End Sub
 
 End Module

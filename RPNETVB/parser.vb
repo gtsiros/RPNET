@@ -28,18 +28,20 @@ Partial Module RPNETVB
                 If t IsNot Nothing Then tokens.Add(t) Else Throw New Exception("can't find Type for '" & TypeName)
             ElseIf words.TryGetValue(term, ob) Then
                 tokens.Add(ob)
-            ElseIf term(0) = "@"c OrElse term(0) = "?"c OrElse term(0) = "!"c Then
-                If term.Length > 1 Then
-                    Select Case term(0)
-                        Case "@"c ' method call
-                            tokens.Add(New MethodCall With {.methodname = term.Substring(1)})
-                            ' i will implement these after i succeed in implementing method call
-                        Case "?"c
-                        Case "!"c
-                    End Select
-                Else
-                    Throw New Exception("'" & term(0) & "' must be followed with something")
-                End If
+                'ElseIf term(0) = "@"c OrElse term(0) = "?"c OrElse term(0) = "!"c Then
+                '    If term.Length > 1 Then
+                '        Select Case term(0)
+                '            Case "@"c ' method call
+                '                tokens.Add(New MethodCall With {.methodname = term.Substring(1)})
+                '                ' i will implement these after i succeed in implementing method call
+                '            Case "?"c
+                '                tokens.Add(New FieldRecall With {.fieldname = term.Substring(1)})
+                '            Case "!"c
+                '                tokens.Add(New FieldStore With {.fieldname = term.Substring(1)})
+                '        End Select
+                '    Else
+                '        Throw New Exception("'" & term(0) & "' must be followed with something")
+                '    End If
             Else Throw New Exception("unknown term '" + term + "'")
             End If
         Next
@@ -144,7 +146,10 @@ Partial Module RPNETVB
         If TypeOf ob Is Type Then Return "<" & DirectCast(ob, Type).FullName & ">"
         If TypeOf ob Is Secondary Then Return ":: " & String.Join(" ", DirectCast(ob, Secondary).ConvertAll(Function(o) tostr(o)))
         If TypeOf ob Is ObList Then Return "{ " & String.Join(" ", DirectCast(ob, ObList).ConvertAll(Function(o) tostr(o))) & " }"
-        If TypeOf ob Is MethodCall Then Return "@" & DirectCast(ob, MethodCall).methodname
+        'If TypeOf ob Is MethodCall Then Return "@" & DirectCast(ob, MethodCall).methodname
+        'If TypeOf ob Is FieldRecall Then Return "?" & DirectCast(ob, FieldRecall).fieldname
+        'If TypeOf ob Is FieldStore Then Return "!" & DirectCast(ob, FieldStore).fieldname
+        'whatever it is, it is unhandled by us
         Return ob.ToString & ", <" & ty.FullName & ">"
     End Function
 
