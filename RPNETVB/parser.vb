@@ -35,11 +35,11 @@ Partial Module RPNETVB
             If tokens.Count < 2 Then Throw New Exception("expecting more tokens")
             If Not tokens(tokens.Count - 1).Equals(_DoSemi) Then Throw New Exception("expected semi/endlist, found '" & tostr(tokens(tokens.Count - 1)) & "'")
             If tokens(0).Equals(_DoCol) Then
-                StrTo = New Secondary(tokens.Skip(1))
+                StrTo = New Secondary(tokens.Skip(1)) ' include its semi
             ElseIf tokens(0).Equals(_DoList) Then
-                StrTo = New ObList(tokens.Skip(1))
+                StrTo = New ObList(tokens.Skip(1).Take(tokens.Count - 2)) ' skip its semi
             ElseIf tokens(0).Equals(_DoSym) Then
-                StrTo = New Symbolic(tokens.Skip(1))
+                StrTo = New Symbolic(tokens.Skip(1)) ' include its semi
             End If
         ElseIf tokens.Count > 1 Then
             Throw New Exception("composite implied, but can't start with '" & tostr(tokens(0)) & "'")

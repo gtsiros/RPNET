@@ -3,7 +3,7 @@ Imports System.Diagnostics
 Imports System.Text
 
 Module RPNETVB
-    Dim words As New Dictionary(Of String, Object) From {{"}", _DoSemi}}
+    Dim words As New Dictionary(Of String, Object)
     Public W As Action(Of String) = Sub(s) Console.WriteLine(s)
     Private _OB As Object
     Private _DS As New StackList(Of Object)
@@ -31,11 +31,13 @@ Module RPNETVB
     End Sub
 
     Sub Main()
+        'adds all the methods marked RPLWord to the dictionary
         For Each mi As MethodInfo In GetType(RPNETVB).GetMethods
             Dim asRPLWord As RPLWord = mi.GetCustomAttribute(GetType(RPLWord))
             If asRPLWord Is Nothing Then Continue For
             words.Add(If(asRPLWord.WordName.Length = 0, mi.Name, asRPLWord.WordName), mi.CreateDelegate(GetType(Action)))
         Next
+        words.Add("}", GetType(RPNETVB).GetMethod("DoSemi").CreateDelegate(GetType(Action)))
 
         Dim str As String = ""
         _RS = New Secondary({
