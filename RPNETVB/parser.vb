@@ -1,10 +1,10 @@
 ﻿Imports System.Linq
 Imports System.Reflection
 Partial Module RPNETVB
-    Dim escapes As New Dictionary(Of Char, Char) From {{"\"c, "\"c}, {"n"c, Chr(10)}, {"r"c, Chr(13)}, {"t"c, Chr(9)}, {""""c, """"c}}
-    Dim type_specifier As New Dictionary(Of String, Type) From {{"#", GetType(Integer)}, {"%", GetType(Single)}, {"%%", GetType(Double)}, {"$", GetType(String)}}
+    Private escapes As New Dictionary(Of Char, Char) From {{"\"c, "\"c}, {"n"c, Chr(10)}, {"r"c, Chr(13)}, {"t"c, Chr(9)}, {""""c, """"c}}
+    Private type_specifier As New Dictionary(Of String, Type) From {{"#", GetType(Integer)}, {"%", GetType(Single)}, {"%%", GetType(Double)}, {"$", GetType(String)}}
 
-    Enum LexerState
+    Private Enum LexerState
         token
         whitespace
         escape
@@ -12,7 +12,7 @@ Partial Module RPNETVB
         comment
     End Enum
 
-    Function StrTo(str As String) As Object
+    Private Function StrTo(str As String) As Object
         StrTo = Nothing
         Dim tokens As New List(Of Object)
         Dim expect As Type = Nothing
@@ -34,20 +34,6 @@ Partial Module RPNETVB
                 If t IsNot Nothing Then tokens.Add(t) Else Throw New Exception("can't find Type for '" & TypeName & "'")
             ElseIf words.TryGetValue(term, ob) Then
                 tokens.Add(ob)
-                'ElseIf term(0) = "@"c OrElse term(0) = "?"c OrElse term(0) = "!"c Then
-                '    If term.Length > 1 Then
-                '        Select Case term(0)
-                '            Case "@"c ' method call
-                '                tokens.Add(New MethodCall With {.methodname = term.Substring(1)})
-                '                ' i will implement these after i succeed in implementing method call
-                '            Case "?"c
-                '                tokens.Add(New FieldRecall With {.fieldname = term.Substring(1)})
-                '            Case "!"c
-                '                tokens.Add(New FieldStore With {.fieldname = term.Substring(1)})
-                '        End Select
-                '    Else
-                '        Throw New Exception("'" & term(0) & "' must be followed with something")
-                '    End If
             Else Throw New Exception("unknown term '" + term + "'")
             End If
         Next
@@ -55,13 +41,7 @@ Partial Module RPNETVB
         If tokens(0).Equals(_DoCol) OrElse tokens(0).Equals(_DoList) OrElse tokens(0).Equals(_DoSym) Then
             If tokens.Count < 2 Then Throw New Exception("expecting more tokens")
             If Not tokens(tokens.Count - 1).Equals(_DoSemi) Then Throw New Exception("expected semi/endlist, found '" & tostr(tokens(tokens.Count - 1)) & "'")
-            If tokens(0).Equals(_DoCol) Then
-                StrTo = New Secondary(tokens.Skip(1)) ' include its semi
-            ElseIf tokens(0).Equals(_DoList) Then
-                StrTo = New ObList(tokens.Skip(1).Take(tokens.Count - 2)) ' skip its semi
-            ElseIf tokens(0).Equals(_DoSym) Then
-                StrTo = New Symbolic(tokens.Skip(1)) ' include its semi
-            End If
+            StrTo = New Composite(tokens(0), tokens.Skip(1).Take(tokens.Count - 2)) ' skip its semi
         ElseIf tokens.Count > 1 Then
             Throw New Exception("composite implied, but can't start any with '" & tostr(tokens(0)) & "'")
         Else
@@ -69,7 +49,7 @@ Partial Module RPNETVB
         End If
     End Function
 
-    Function Split(str As String) As List(Of String)
+    Private Function Split(str As String) As List(Of String)
         Split = New List(Of String)
         Dim state As LexerState = LexerState.whitespace
         Dim token As String = ""
@@ -126,7 +106,7 @@ Partial Module RPNETVB
         End Select
     End Function
 
-    Function tostr(ob As Object) As String
+    Private Function tostr(ob As Object) As String
         If ob Is Nothing Then Return "null"
         Dim ty As Type = ob.GetType
         Dim ts As String = ""
@@ -150,13 +130,15 @@ Partial Module RPNETVB
         End If
 
         If TypeOf ob Is Type Then Return "<" & DirectCast(ob, Type).FullName & ">"
-        If TypeOf ob Is Secondary Then Return ":: " & String.Join(" ", DirectCast(ob, Secondary).ConvertAll(Function(o) tostr(o)))
-        If TypeOf ob Is ObList Then Return "{ " & String.Join(" ", DirectCast(ob, ObList).ConvertAll(Function(o) tostr(o))) & " }"
-        'If TypeOf ob Is MethodCall Then Return "@" & DirectCast(ob, MethodCall).methodname
-        'If TypeOf ob Is FieldRecall Then Return "?" & DirectCast(ob, FieldRecall).fieldname
-        'If TypeOf ob Is FieldStore Then Return "!" & DirectCast(ob, FieldStore).fieldname
-        'whatever it is, it is unhandled by us
-        'If TypeOf ob Is Array Then Return "<" & ty.FullName & ">"
+        If TypeOf ob Is Composite Then
+            Dim comp As Composite = ob
+            tostr = comp.Aggregate(tostr(comp.head), Function(a, b) a & " " & tostr(b))
+            If comp.head.Equals(_DoList) Then ' only one that ends with } instead of ;
+                Return tostr & " }"
+            Else
+                Return tostr & " ;" ' do-hoho
+            End If
+        End If
         Return "<" & ty.FullName & ">"
     End Function
 

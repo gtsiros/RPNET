@@ -3,7 +3,7 @@ Imports System.Diagnostics
 
 Partial Module RPNETVB
 
-    <AttributeUsage(AttributeTargets.Method, Inherited:=False, AllowMultiple:=True)> Class RPLWord
+    <AttributeUsage(AttributeTargets.Method, Inherited:=False, AllowMultiple:=False)> Class RPLWord
         Inherits Attribute
         Public WordName As String
         Public Sub New(Optional name As String = "")
@@ -25,8 +25,9 @@ Partial Module RPNETVB
         End Sub
     End Class
 
-    MustInherit Class Composite
+    Class Composite
         Inherits List(Of Object)
+        Public head As Action
         Public Shared Operator +(a As Composite, b As Object) As Composite
             a.Add(b)
             Return a
@@ -39,26 +40,30 @@ Partial Module RPNETVB
             b.Insert(0, a)
             Return b
         End Operator
-    End Class
-
-    Class Secondary
-        Inherits Composite
-        <DebuggerStepThrough> Sub New(Optional l As IEnumerable(Of Object) = Nothing)
-            If l IsNot Nothing Then MyBase.AddRange(l)
+        Sub New(head As Action, Optional l As IEnumerable(Of Object) = Nothing)
+            Me.head = head
+            If l IsNot Nothing Then AddRange(l)
         End Sub
     End Class
 
-    Class Symbolic
-        Inherits Composite
-        <DebuggerStepThrough> Sub New(Optional l As IEnumerable(Of Object) = Nothing)
-            If l IsNot Nothing Then MyBase.AddRange(l)
-        End Sub
-    End Class
+    'Class Secondary
+    '    Inherits Composite
+    '    <DebuggerStepThrough> Sub New(Optional l As IEnumerable(Of Object) = Nothing)
+    '        If l IsNot Nothing Then MyBase.AddRange(l)
+    '    End Sub
+    'End Class
 
-    Class ObList ' i need an explicit list(of object) as a separate type/class
-        Inherits Composite
-        <DebuggerStepThrough> Sub New(Optional l As IEnumerable(Of Object) = Nothing)
-            If l IsNot Nothing Then MyBase.AddRange(l)
-        End Sub
-    End Class
+    'Class Symbolic
+    '    Inherits Composite
+    '    <DebuggerStepThrough> Sub New(Optional l As IEnumerable(Of Object) = Nothing)
+    '        If l IsNot Nothing Then MyBase.AddRange(l)
+    '    End Sub
+    'End Class
+
+    'Class ObList ' i need an explicit list(of object) as a separate type/class
+    '    Inherits Composite
+    '    <DebuggerStepThrough> Sub New(Optional l As IEnumerable(Of Object) = Nothing)
+    '        If l IsNot Nothing Then MyBase.AddRange(l)
+    '    End Sub
+    'End Class
 End Module

@@ -1,15 +1,15 @@
 ﻿Imports System.Linq
 Imports System.Reflection
 Partial Module RPNETVB
-    Private _DoCol As Action = AddressOf DoCol ' just so i don't carry the cast around
-    Private _DoSemi As Action = AddressOf DoSemi
-    Private _DoList As Action = AddressOf DoList
-    Private _DoSym As Action = AddressOf DoSym ' same thing, actually
+    Public _DoCol As Action = AddressOf DoCol ' just so i don't carry the cast around
+    Public _DoList As Action = AddressOf DoList
+    Public _DoSym As Action = AddressOf DoSym ' same thing, actually
+    Public _DoSemi As Action = AddressOf DoSemi
 
     ''' <summary>
     ''' pops the data stack into the next object to be evaluated
     ''' </summary>
-    <RPLWord("eval")> Sub rpleval()
+    <RPLWord("eval")> Public Sub rpleval()
         _OB = _DS.Pop
         'Eval()
     End Sub
@@ -40,7 +40,7 @@ Partial Module RPNETVB
     <RPLWord("words")> Sub listwords()
         _IP += 1
         _OB = _RS(_IP)
-        _DS.Push(New ObList(words.Values.ToList))
+        _DS.Push(New Composite(_DoList, words.Values.ToList))
     End Sub
 
     <RPLWord("==")> Sub eq()
@@ -108,13 +108,34 @@ Partial Module RPNETVB
     End Sub
 
     <RPLWord("::")> Sub DoCol()
-        Dim startIndex As Integer = _IP + 1
-        SkipOb()
-        _RSSTK.Push(_RS)
-        _IPSTK.Push(_IP)
-        _RS = New Secondary(_RS.GetRange(startIndex, _IP - startIndex))
-        _IP = 0
-        _OB = _RS(0)
+        If _OB.Equals(_DoCol) Then ' then it means we're running in the runstream
+            Dim startIndex As Integer = _IP + 1
+            SkipOb()
+            _RSSTK.Push(_RS)
+            _IPSTK.Push(_IP)
+            _RS = New Composite(_DoCol, _RS.GetRange(startIndex, _IP - startIndex))
+            _IP = 0
+            _OB = _RS(0)
+        Else ' it means we're being evaluated from the datastack
+            _IPSTK.Push(_IP + 1) 'implicit DoCol
+            _IP = 0
+            _RSSTK.Push(_RS)
+            _RS = _OB
+            _OB = _RS(_IP)
+        End If
+    End Sub
+
+    <RPLWord("{")> Sub DoList()
+        If _OB.Equals(_DoList) Then
+            Dim startIndex As Integer = _IP + 1 'keep it, before SkipOb rapes it
+            SkipOb()
+            _DS.Push(New Composite(_DoList, _RS.GetRange(startIndex, _IP - startIndex - 1))) 'ignore DoList AND DoSemi (it's a list)
+            _OB = _RS(_IP)
+        Else
+            ' nothing... a list is just a list... all it does is push itself on the stack, which accomplishes nothing so it does nothing
+            _IP += 1
+            _OB = _RS(_IP)
+        End If
     End Sub
 
     <RPLWord> Sub parse()
@@ -142,12 +163,10 @@ Partial Module RPNETVB
         SkipOb()
         If _IP - startIndex > 1 Then
             Dim ob As Object = _RS(startIndex)
-            If ob.Equals(_DoCol) Then
-                _DS.Push(New Secondary(_RS.GetRange(startIndex + 1, _IP - startIndex - 1)))
-            ElseIf ob.Equals(_DoSym) Then
-                _DS.Push(New Symbolic(_RS.GetRange(startIndex + 1, _IP - startIndex - 1)))
-            ElseIf ob.Equals(_DoList) Then
-                _DS.Push(New ObList(_RS.GetRange(startIndex + 1, _IP - startIndex - 1)))
+            ' i should really factor this out, have one composite class and the type as a parameter or something, because basically all composites are the same
+            ' it's just the header that changes
+            If ob.Equals(_DoCol) OrElse ob.Equals(_DoList) OrElse ob.Equals(_DoSym) Then ' really need anotherway to check if it starts a composite
+                _DS.Push(New Composite(ob, _RS.GetRange(startIndex + 1, _IP - startIndex - 1)))
             Else
                 Throw New Exception("unknown composite")
             End If
@@ -165,7 +184,7 @@ Partial Module RPNETVB
 
     <RPLWord> Sub read()
         _IP += 1
-        _DS.Push(Console.ReadLine())
+        _DS.Push(R)
         _OB = _RS(_IP)
     End Sub
 
@@ -178,13 +197,6 @@ Partial Module RPNETVB
     <RPLWord> Sub drop()
         _IP += 1
         _DS.Pop()
-        _OB = _RS(_IP)
-    End Sub
-
-    <RPLWord("{")> Sub DoList()
-        Dim startIndex As Integer = _IP + 1 'keep it, before SkipOb rapes it
-        SkipOb()
-        _DS.Push(New ObList(_RS.GetRange(startIndex, _IP - startIndex - 1))) 'ignore DoList AND DoSemi (it's a list)
         _OB = _RS(_IP)
     End Sub
 
@@ -253,28 +265,28 @@ Partial Module RPNETVB
         _DS.Clear()
     End Sub
 
-    <RPLWord("::n")> Sub createSecondary()
+
+    ' could probably factor out the common code of these two
+    ' yeah imma do that right now
+
+    Sub CreateComposite(head As Action)
         _IP += 1
         _OB = _RS(_IP)
         Dim count As Integer = _DS.Pop
-        Dim seco As New Secondary
-        _DS.Push(seco)
+        Dim comp As New Composite(head)
+        _DS.Push(comp)
         If count > 0 Then
-            seco.AddRange(_DS.Skip(1).Take(count))
+            comp.AddRange(_DS.Skip(1).Take(count))
             _DS.RemoveRange(1, count)
         End If
+        comp.Add(_DoSemi) ' you don't have to add them explicitly
+    End Sub
+    <RPLWord("::n")> Sub createSecondary()
+        CreateComposite(_DoCol)
     End Sub
 
     <RPLWord("{}n")> Sub createObList()
-        _IP += 1
-        _OB = _RS(_IP)
-        Dim count As Integer = _DS.Pop
-        Dim obl As New ObList
-        _DS.Push(obl)
-        If count > 0 Then
-            obl.AddRange(_DS.Skip(1).Take(count))
-            _DS.RemoveRange(1, count)
-        End If
+        CreateComposite(_DoList)
     End Sub
 
     <RPLWord> Sub innercomp()
@@ -311,8 +323,8 @@ Partial Module RPNETVB
         Dim methodname As String = _DS.Pop
         Dim args() As Object = New Object() {}
         Dim argtypes() As Type = New Type() {}
-        If TypeOf _DS(0) Is ObList Then
-            args = DirectCast(_DS.Pop, ObList).ToArray
+        If TypeOf _DS(0) Is Composite Then
+            args = DirectCast(_DS.Pop, Composite).ToArray
             argtypes = Type.GetTypeArray(args)
         End If
         Dim ob As Object = _DS.Pop
@@ -330,13 +342,6 @@ Partial Module RPNETVB
         _IP += 1
         _OB = _RS(_IP)
     End Sub
-
-    ''' <summary>
-    ''' 2: Object ob
-    ''' 1: String fieldname
-    ''' pops both arguments, 
-    ''' returns value of field with that name
-    ''' </summary>
     <RPLWord("?")> Sub fieldrecall()
         Dim fieldname As String = _DS.Pop
         Dim ob As Object = _DS.Pop
@@ -372,8 +377,8 @@ Partial Module RPNETVB
     <RPLWord("new")> Sub _new()
         Dim args() As Object = New Object() {}
         Dim argtypes() As Type = New Type() {}
-        If TypeOf _DS(0) Is ObList Then
-            args = DirectCast(_DS.Pop, ObList).ToArray
+        If TypeOf _DS(0) Is Composite Then
+            args = DirectCast(_DS.Pop, Composite).ToArray
             argtypes = Type.GetTypeArray(args)
         End If
         Dim ty As Type = _DS.Pop
