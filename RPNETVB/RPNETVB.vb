@@ -84,8 +84,11 @@ Module RPNETVB
             words("+"),
             words("swap"),
             words("+"),
+            words("{"),
             2,
-            words("substr"),
+            words("}"),
+            "Substring", ' have the ability to call methods, might as well use it...
+            words("@"),
             words("print"),
             words("loop"),
             words(";"),

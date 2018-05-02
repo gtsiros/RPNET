@@ -37,12 +37,6 @@ Partial Module RPNETVB
         _DS.Push(_LOOPindex)
     End Sub
 
-    <RPLWord> Sub reference()
-        _IP += 1
-        _OB = _RS(_IP)
-        Assembly.Load(_DS.Pop)
-    End Sub
-
     <RPLWord("words")> Sub listwords()
         _IP += 1
         _OB = _RS(_IP)
@@ -259,6 +253,30 @@ Partial Module RPNETVB
         _DS.Clear()
     End Sub
 
+    <RPLWord("::n")> Sub createSecondary()
+        _IP += 1
+        _OB = _RS(_IP)
+        Dim count As Integer = _DS.Pop
+        Dim seco As New Secondary
+        _DS.Push(seco)
+        If count > 0 Then
+            seco.AddRange(_DS.Skip(1).Take(count))
+            _DS.RemoveRange(1, count)
+        End If
+    End Sub
+
+    <RPLWord("{}n")> Sub createObList()
+        _IP += 1
+        _OB = _RS(_IP)
+        Dim count As Integer = _DS.Pop
+        Dim obl As New ObList
+        _DS.Push(obl)
+        If count > 0 Then
+            obl.AddRange(_DS.Skip(1).Take(count))
+            _DS.RemoveRange(1, count)
+        End If
+    End Sub
+
     <RPLWord> Sub innercomp()
         _IP += 1
         _OB = _RS(_IP)
@@ -298,10 +316,15 @@ Partial Module RPNETVB
             argtypes = Type.GetTypeArray(args)
         End If
         Dim ob As Object = _DS.Pop
-        Dim ty As Type = ob.GetType
-        Dim mi As MethodInfo = ty.GetMethod(methodname, BindingFlags.Public Or BindingFlags.Instance, Nothing, argtypes, Nothing)
-        If mi Is Nothing Then mi = ty.GetMethod(methodname, BindingFlags.Public Or BindingFlags.Static, Nothing, argtypes, Nothing)
-        If mi Is Nothing Then Stop
+        Dim ty As Type
+        Dim bf As BindingFlags = BindingFlags.Public Or BindingFlags.Instance
+        If TypeOf ob Is Type Then
+            ty = ob
+            bf = BindingFlags.Public Or BindingFlags.Static
+        Else
+            ty = ob.GetType
+        End If
+        Dim mi As MethodInfo = ty.GetMethod(methodname, bf, Nothing, argtypes, Nothing)
         Dim resob As Object = mi.Invoke(ob, args)
         If mi.ReturnType IsNot GetType(Void) Then _DS.Push(resob)
         _IP += 1
