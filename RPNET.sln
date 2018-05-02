@@ -7,6 +7,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RPNETCS", "RPNETCS\RPNETCS.
 EndProject
 Project("{F184B08F-C81C-45F6-A57F-5ABD9991F28F}") = "RPNETVB", "RPNETVB\RPNETVB.vbproj", "{90FC9D6D-FD68-44E3-8A79-01CF67FB0804}"
 EndProject
+Project("{F184B08F-C81C-45F6-A57F-5ABD9991F28F}") = "SimpleUI", "SimpleUI\SimpleUI.vbproj", "{BE84E99E-D493-4501-B3C4-DA9DC5FF8A20}"
+	ProjectSection(ProjectDependencies) = postProject
+		{90FC9D6D-FD68-44E3-8A79-01CF67FB0804} = {90FC9D6D-FD68-44E3-8A79-01CF67FB0804}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -20,6 +25,10 @@ Global
 		{90FC9D6D-FD68-44E3-8A79-01CF67FB0804}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{90FC9D6D-FD68-44E3-8A79-01CF67FB0804}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{90FC9D6D-FD68-44E3-8A79-01CF67FB0804}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BE84E99E-D493-4501-B3C4-DA9DC5FF8A20}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BE84E99E-D493-4501-B3C4-DA9DC5FF8A20}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BE84E99E-D493-4501-B3C4-DA9DC5FF8A20}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BE84E99E-D493-4501-B3C4-DA9DC5FF8A20}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
