@@ -1,3 +1,5 @@
+
+
 # Quick Demo
 
 Load it, run it, a console should open.
@@ -16,10 +18,14 @@ now you have 11 items on the stack
 now they're gone
 
 # RPNET
-RPN system based around .net
-# what
-A programming language / execution library / system, that uses rpl-like syntax and .net as its "backend".
-It's written in C# for .net 4.7.1 but it should run on 3.5 . Probably even lower.
+If you've ever programmed a Hewlett Packard calculator in sysRPL, this is exactly that.
+
+RPL is a [concatenative](https://en.wikipedia.org/wiki/Concatenative_programming_language), [reflective](https://en.wikipedia.org/wiki/Reflection_(computer_programming)), [stack-oriented](https://en.wikipedia.org/wiki/Stack-oriented_programming_language), [threaded-interpreted](https://en.wikipedia.org/wiki/Threaded_code) [metaprogramming](https://en.wikipedia.org/wiki/Metaprogramming) language and system all in one.
+
+A somewhat thorough explanation of how the system works is in the document [rplman.doc](https://www.hpcalc.org/details/1743). That document is a guide for RPNET.# what
+
+It's written in VB ( or C#, i switch from one to the other occassionaly) for .net 4.7.1 but it should run on 3.5 . Probably even lower.
+
 # why
 Write a program while executing it, change the program (while executing it), don't need a development environment to write a program. Incrementaly improve the language/system
 # who
