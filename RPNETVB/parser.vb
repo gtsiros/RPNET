@@ -140,7 +140,8 @@ Partial Module RPNETVB
                 Return tostr & " ;" ' do-hoho
             End If
         End If
-        Return "<" & ty.FullName & ">"
+        tostr = words.FirstOrDefault(Function(kvp) kvp.Value.Equals(ob)).Key
+        Return If(tostr, "<""" & ob.ToString & """>")
     End Function
 
 End Module

@@ -27,6 +27,8 @@ Partial Class SimpleUI
         Me.SplitContainer1 = New System.Windows.Forms.SplitContainer()
         Me.SplitContainer2 = New System.Windows.Forms.SplitContainer()
         Me.outp = New System.Windows.Forms.TextBox()
+        Me.SplitContainer3 = New System.Windows.Forms.SplitContainer()
+        Me.hist = New System.Windows.Forms.TextBox()
         CType(Me.SplitContainer1, System.ComponentModel.ISupportInitialize).BeginInit()
         Me.SplitContainer1.Panel1.SuspendLayout()
         Me.SplitContainer1.Panel2.SuspendLayout()
@@ -35,6 +37,10 @@ Partial Class SimpleUI
         Me.SplitContainer2.Panel1.SuspendLayout()
         Me.SplitContainer2.Panel2.SuspendLayout()
         Me.SplitContainer2.SuspendLayout()
+        CType(Me.SplitContainer3, System.ComponentModel.ISupportInitialize).BeginInit()
+        Me.SplitContainer3.Panel1.SuspendLayout()
+        Me.SplitContainer3.Panel2.SuspendLayout()
+        Me.SplitContainer3.SuspendLayout()
         Me.SuspendLayout()
         '
         'stk
@@ -45,7 +51,7 @@ Partial Class SimpleUI
         Me.stk.Multiline = True
         Me.stk.Name = "stk"
         Me.stk.ReadOnly = True
-        Me.stk.Size = New System.Drawing.Size(289, 264)
+        Me.stk.Size = New System.Drawing.Size(394, 456)
         Me.stk.TabIndex = 2
         Me.stk.WordWrap = False
         '
@@ -57,7 +63,7 @@ Partial Class SimpleUI
         Me.inp.Margin = New System.Windows.Forms.Padding(4)
         Me.inp.Multiline = True
         Me.inp.Name = "inp"
-        Me.inp.Size = New System.Drawing.Size(867, 262)
+        Me.inp.Size = New System.Drawing.Size(394, 460)
         Me.inp.TabIndex = 1
         Me.inp.WordWrap = False
         '
@@ -76,9 +82,9 @@ Partial Class SimpleUI
         '
         'SplitContainer1.Panel2
         '
-        Me.SplitContainer1.Panel2.Controls.Add(Me.inp)
-        Me.SplitContainer1.Size = New System.Drawing.Size(867, 535)
-        Me.SplitContainer1.SplitterDistance = 264
+        Me.SplitContainer1.Panel2.Controls.Add(Me.SplitContainer3)
+        Me.SplitContainer1.Size = New System.Drawing.Size(1182, 925)
+        Me.SplitContainer1.SplitterDistance = 456
         Me.SplitContainer1.SplitterWidth = 9
         Me.SplitContainer1.TabIndex = 3
         '
@@ -95,8 +101,8 @@ Partial Class SimpleUI
         'SplitContainer2.Panel2
         '
         Me.SplitContainer2.Panel2.Controls.Add(Me.outp)
-        Me.SplitContainer2.Size = New System.Drawing.Size(867, 264)
-        Me.SplitContainer2.SplitterDistance = 289
+        Me.SplitContainer2.Size = New System.Drawing.Size(1182, 456)
+        Me.SplitContainer2.SplitterDistance = 394
         Me.SplitContainer2.TabIndex = 3
         '
         'outp
@@ -107,15 +113,43 @@ Partial Class SimpleUI
         Me.outp.Name = "outp"
         Me.outp.ReadOnly = True
         Me.outp.ScrollBars = System.Windows.Forms.ScrollBars.Both
-        Me.outp.Size = New System.Drawing.Size(574, 264)
+        Me.outp.Size = New System.Drawing.Size(784, 456)
         Me.outp.TabIndex = 0
         Me.outp.WordWrap = False
+        '
+        'SplitContainer3
+        '
+        Me.SplitContainer3.Dock = System.Windows.Forms.DockStyle.Fill
+        Me.SplitContainer3.Location = New System.Drawing.Point(0, 0)
+        Me.SplitContainer3.Name = "SplitContainer3"
+        '
+        'SplitContainer3.Panel1
+        '
+        Me.SplitContainer3.Panel1.Controls.Add(Me.inp)
+        '
+        'SplitContainer3.Panel2
+        '
+        Me.SplitContainer3.Panel2.Controls.Add(Me.hist)
+        Me.SplitContainer3.Size = New System.Drawing.Size(1182, 460)
+        Me.SplitContainer3.SplitterDistance = 394
+        Me.SplitContainer3.TabIndex = 2
+        '
+        'hist
+        '
+        Me.hist.Dock = System.Windows.Forms.DockStyle.Fill
+        Me.hist.Location = New System.Drawing.Point(0, 0)
+        Me.hist.Multiline = True
+        Me.hist.Name = "hist"
+        Me.hist.ReadOnly = True
+        Me.hist.Size = New System.Drawing.Size(784, 460)
+        Me.hist.TabIndex = 0
+        Me.hist.WordWrap = False
         '
         'SimpleUI
         '
         Me.AutoScaleDimensions = New System.Drawing.SizeF(9.0!, 19.0!)
         Me.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font
-        Me.ClientSize = New System.Drawing.Size(867, 535)
+        Me.ClientSize = New System.Drawing.Size(1182, 925)
         Me.Controls.Add(Me.SplitContainer1)
         Me.Font = New System.Drawing.Font("Consolas", 12.0!, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, CType(0, Byte))
         Me.KeyPreview = True
@@ -124,7 +158,6 @@ Partial Class SimpleUI
         Me.Text = "Form1"
         Me.SplitContainer1.Panel1.ResumeLayout(False)
         Me.SplitContainer1.Panel2.ResumeLayout(False)
-        Me.SplitContainer1.Panel2.PerformLayout()
         CType(Me.SplitContainer1, System.ComponentModel.ISupportInitialize).EndInit()
         Me.SplitContainer1.ResumeLayout(False)
         Me.SplitContainer2.Panel1.ResumeLayout(False)
@@ -133,6 +166,12 @@ Partial Class SimpleUI
         Me.SplitContainer2.Panel2.PerformLayout()
         CType(Me.SplitContainer2, System.ComponentModel.ISupportInitialize).EndInit()
         Me.SplitContainer2.ResumeLayout(False)
+        Me.SplitContainer3.Panel1.ResumeLayout(False)
+        Me.SplitContainer3.Panel1.PerformLayout()
+        Me.SplitContainer3.Panel2.ResumeLayout(False)
+        Me.SplitContainer3.Panel2.PerformLayout()
+        CType(Me.SplitContainer3, System.ComponentModel.ISupportInitialize).EndInit()
+        Me.SplitContainer3.ResumeLayout(False)
         Me.ResumeLayout(False)
 
     End Sub
@@ -142,4 +181,6 @@ Partial Class SimpleUI
     Friend WithEvents SplitContainer1 As SplitContainer
     Friend WithEvents SplitContainer2 As SplitContainer
     Friend WithEvents outp As TextBox
+    Friend WithEvents SplitContainer3 As SplitContainer
+    Friend WithEvents hist As TextBox
 End Class

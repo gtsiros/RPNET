@@ -62,6 +62,8 @@ Public Module RPNETVB
             words.Add(If(asRPLWord.WordName.Length = 0, mi.Name, asRPLWord.WordName), mi.CreateDelegate(GetType(Action)))
         Next
         words.Add("}", GetType(RPNETVB).GetMethod("DoSemi").CreateDelegate(GetType(Action))) ' common for secondary/symbolic and list, otherwise one would have to write { # 1 # 2 ; instead of { # 1 # 2 }
+        words.Add("true", True)
+        words.Add("false", False)
         ExecCmdLine = New Composite(_DoCol, New Object() {words("parse"), words("'"), words("eval"), words("'"), words("print"), words("ifte"), words("end")})
     End Sub
 

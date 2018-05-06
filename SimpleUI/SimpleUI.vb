@@ -13,6 +13,7 @@ Public Class SimpleUI
         If args.KeyData <> (Keys.Return Or Keys.Shift) Then Exit Sub
         args.SuppressKeyPress = True
         Dim result As List(Of String) = Exec(inp.Text)
+        hist.AppendText(inp.Text & vbNewLine)
         inp.Clear()
         stk.Clear()
         If result.Count > 0 Then
