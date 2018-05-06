@@ -111,31 +111,29 @@ Partial Module RPNETVB
         If _OB.Equals(_DoCol) Then ' then it means we're running in the runstream
             Dim startIndex As Integer = _IP + 1
             SkipOb()
-            _RSSTK.Push(_RS)
             _IPSTK.Push(_IP)
-            _RS = New Composite(_DoCol, _RS.GetRange(startIndex, _IP - startIndex))
-            _IP = 0
-            _OB = _RS(0)
+            _RSSTK.Push(_RS)
+            _RS = New Composite(_DoCol, _RS.GetRange(startIndex, _IP - startIndex - 2)) ' skip the semi from the runstream
         Else ' it means we're being evaluated from the datastack
             _IPSTK.Push(_IP + 1) 'implicit DoCol
-            _IP = 0
             _RSSTK.Push(_RS)
-            _RS = _OB
-            _OB = _RS(_IP)
+            _RS = _OB ' remember the composite on the stack does not contain an ending semi
         End If
+        _RS.Add(_DoSemi)
+        _IP = 0
+        _OB = _RS(0)
     End Sub
 
     <RPLWord("{")> Sub DoList()
-        If _OB.Equals(_DoList) Then
+        If _OB.Equals(_DoList) Then ' being evaluated from the runstream
             Dim startIndex As Integer = _IP + 1 'keep it, before SkipOb rapes it
             SkipOb()
-            _DS.Push(New Composite(_DoList, _RS.GetRange(startIndex, _IP - startIndex - 1))) 'ignore DoList AND DoSemi (it's a list)
-            _OB = _RS(_IP)
-        Else
-            ' nothing... a list is just a list... all it does is push itself on the stack, which accomplishes nothing so it does nothing
+            _DS.Push(New Composite(_DoList, _RS.GetRange(startIndex, _IP - startIndex - 2))) 'ignore DoList AND DoSemi (it's a list)
+        Else ' being evaluated from the stack
             _IP += 1
-            _OB = _RS(_IP)
+            ' nothing... a list is just a list... all it does is push itself on the stack, which accomplishes nothing so it does nothing
         End If
+        _OB = _RS(_IP)
     End Sub
 
     <RPLWord> Sub parse()
@@ -165,8 +163,8 @@ Partial Module RPNETVB
             Dim ob As Object = _RS(startIndex)
             ' i should really factor this out, have one composite class and the type as a parameter or something, because basically all composites are the same
             ' it's just the header that changes
-            If ob.Equals(_DoCol) OrElse ob.Equals(_DoList) OrElse ob.Equals(_DoSym) Then ' really need anotherway to check if it starts a composite
-                _DS.Push(New Composite(ob, _RS.GetRange(startIndex + 1, _IP - startIndex - 1)))
+            If IsCompositeHead(ob) Then ' really need anotherway to check if it starts a composite
+                _DS.Push(New Composite(ob, _RS.GetRange(startIndex + 1, _IP - startIndex - 2))) ' the semi doesn't exist explicitly in the list of objects
             Else
                 Throw New Exception("unknown composite")
             End If
@@ -265,10 +263,6 @@ Partial Module RPNETVB
         _DS.Clear()
     End Sub
 
-
-    ' could probably factor out the common code of these two
-    ' yeah imma do that right now
-
     Sub CreateComposite(head As Action)
         _IP += 1
         _OB = _RS(_IP)
@@ -279,8 +273,8 @@ Partial Module RPNETVB
             comp.AddRange(_DS.Skip(1).Take(count))
             _DS.RemoveRange(1, count)
         End If
-        comp.Add(_DoSemi) ' you don't have to add them explicitly
     End Sub
+
     <RPLWord("::n")> Sub createSecondary()
         CreateComposite(_DoCol)
     End Sub
@@ -342,6 +336,7 @@ Partial Module RPNETVB
         _IP += 1
         _OB = _RS(_IP)
     End Sub
+
     <RPLWord("?")> Sub fieldrecall()
         Dim fieldname As String = _DS.Pop
         Dim ob As Object = _DS.Pop

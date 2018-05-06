@@ -132,6 +132,7 @@ Partial Module RPNETVB
         If TypeOf ob Is Type Then Return "<" & DirectCast(ob, Type).FullName & ">"
         If TypeOf ob Is Composite Then
             Dim comp As Composite = ob
+            'Return comp.Aggregate(tostr(comp.head), Function(a, b) a & " " & tostr(b))
             tostr = comp.Aggregate(tostr(comp.head), Function(a, b) a & " " & tostr(b))
             If comp.head.Equals(_DoList) Then ' only one that ends with } instead of ;
                 Return tostr & " }"
