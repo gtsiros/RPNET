@@ -1,119 +1,122 @@
-﻿Imports System.Linq
+﻿Imports System
+Imports System.Linq
 Imports System.Reflection
+Imports Microsoft.VisualBasic
+
 Partial Module RPNETVB
-    Public _DoCol As Action = AddressOf DoCol ' just so i don't carry the cast around
-    Public _DoList As Action = AddressOf DoList
-    Public _DoSym As Action = AddressOf DoSym ' same thing, actually
-    Public _DoSemi As Action = AddressOf DoSemi
+    Public _DoCol As Action = AddressOf RplDOCOL ' just so i don't carry the cast around
+    Public _DoList As Action = AddressOf RplDOLIST
+    Public _DoSym As Action = AddressOf RplDOSYM ' same thing, actually
+    Public _DoSemi As Action = AddressOf RplDOSEMI
 
     ''' <summary>
     ''' pops the data stack into the next object to be evaluated
     ''' </summary>
-    <RPLWord("eval")> Public Sub rpleval()
+    <TRPLWord("EVAL")> Public Sub RplEval()
         _OB = _DS.Pop
         'Eval()
     End Sub
 
-    <RPLWord("tostr")> Sub _tostr()
+    <TRPLWord("TOSTR")> Sub RplToString()
         _IP += 1
         _OB = _RS(_IP)
-        _DS.Push(tostr(_DS.Pop))
+        _DS.Push(Tostr(_DS.Pop))
     End Sub
 
-    <RPLWord> Sub begin()
+    <TRPLWord("BEGIN")> Sub RplBegin()
         _IP += 1
         _OB = _RS(_IP)
         _IPSTK.Push(_IP)
     End Sub
 
-    <RPLWord> Sub again()
+    <TRPLWord("AGAIN")> Sub RplAgain()
         _IP = _IPSTK.Peek
         _OB = _RS(_IP)
     End Sub
 
-    <RPLWord("i?")> Sub _idx()
+    <TRPLWord("LOOPI")> Sub RplRecallIndex()
         _IP += 1
         _OB = _RS(_IP)
         _DS.Push(_LOOPindex)
     End Sub
 
-    <RPLWord("words")> Sub listwords()
+    <TRPLWord("WORDS")> Sub RplListWords()
         _IP += 1
         _OB = _RS(_IP)
-        _DS.Push(New Composite(_DoList, words.Values.ToList))
+        _DS.Push(New TComposite(_DoList, words.Values.ToList))
     End Sub
 
-    <RPLWord("==")> Sub eq()
+    <TRPLWord("==")> Sub RplEquality()
         _IP += 1
         _OB = _RS(_IP)
-        _DS.Push(_DS.Pop = _DS.Pop)
+        _DS.Push(_DS.Pop.Equals(_DS.Pop))
     End Sub
 
-    <RPLWord("+")> Sub _add()
+    <TRPLWord("+")> Sub _RplAddition()
         _IP += 1
         _OB = _RS(_IP)
         _DS.Push(_DS(1) + _DS(0))
         _DS.RemoveRange(1, 2)
     End Sub
 
-    <RPLWord> Sub ticks()
+    <TRPLWord("TICKS")> Sub RplClockTicks()
         _IP += 1
         _OB = _RS(_IP)
         _DS.Push(Now.Ticks)
     End Sub
 
-    <RPLWord("and")> Sub _and()
+    <TRPLWord("AND")> Sub RplAnd()
         _IP += 1
         _DS.Push(_DS(1) And _DS(0))
         _DS.RemoveRange(1, 2)
         _OB = _RS(_IP)
     End Sub
 
-    <RPLWord("or")> Sub _or()
+    <TRPLWord("OR")> Sub RplOr()
         _IP += 1
-        _DS.Push(_DS(1) And _DS(0))
+        _DS.Push(_DS(1) Or _DS(0))
         _DS.RemoveRange(1, 2)
         _OB = _RS(_IP)
     End Sub
 
-    <RPLWord("not")> Sub _not()
+    <TRPLWord("NOT")> Sub RplNot()
         _IP += 1
         _DS.Push(Not _DS.Pop)
         _OB = _RS(_IP)
     End Sub
 
-    <RPLWord("-")> Sub _sub()
+    <TRPLWord("-")> Sub RplSubtract()
         _IP += 1
         _DS.Push(_DS(1) - _DS(0))
         _DS.RemoveRange(1, 2)
         _OB = _RS(_IP)
     End Sub
 
-    <RPLWord> Sub cola()
+    <TRPLWord("COLA")> Sub RplCola()
         _IP += 1
         Dim ob As Object = _RS(_IP)
-        DoSemi()
+        RplDOSEMI()
         _RS.Insert(_IP, ob)
         _OB = _RS(_IP)
     End Sub
 
-    <RPLWord("end")> Sub _end()
+    <TRPLWord("END")> Sub RplLameQuit()
         quit = True
     End Sub
 
-    <RPLWord("debug")> Sub _debug()
+    <TRPLWord("debug")> Sub _debug() '' don't remember what this does
         Stop
         _IP += 1
         _OB = _RS(_IP)
     End Sub
 
-    <RPLWord("::")> Sub DoCol()
+    <TRPLWord("::")> Sub RplDOCOL()
         If _OB.Equals(_DoCol) Then ' then it means we're running in the runstream
-            Dim startIndex As Integer = _IP + 1
+            Dim startIndex As Int32 = _IP + 1
             SkipOb()
             _IPSTK.Push(_IP)
             _RSSTK.Push(_RS)
-            _RS = New Composite(_DoCol, _RS.GetRange(startIndex, _IP - startIndex - 2)) ' skip the semi from the runstream
+            _RS = New TComposite(_DoCol, _RS.GetRange(startIndex, _IP - startIndex - 2)) ' skip the semi from the runstream
         Else ' it means we're being evaluated from the datastack
             _IPSTK.Push(_IP + 1) 'implicit DoCol
             _RSSTK.Push(_RS)
@@ -124,11 +127,11 @@ Partial Module RPNETVB
         _OB = _RS(0)
     End Sub
 
-    <RPLWord("{")> Sub DoList()
+    <TRPLWord("{")> Sub RplDOLIST()
         If _OB.Equals(_DoList) Then ' being evaluated from the runstream
-            Dim startIndex As Integer = _IP + 1 'keep it, before SkipOb rapes it
+            Dim startIndex As Int32 = _IP + 1 'keep it, before SkipOb rapes it
             SkipOb()
-            _DS.Push(New Composite(_DoList, _RS.GetRange(startIndex, _IP - startIndex - 2))) 'ignore DoList AND DoSemi (it's a list)
+            _DS.Push(New TComposite(_DoList, _RS.GetRange(startIndex, _IP - startIndex - 2))) 'ignore DoList AND DoSemi (it's a list)
         Else ' being evaluated from the stack
             _IP += 1
             ' nothing... a list is just a list... all it does is push itself on the stack, which accomplishes nothing so it does nothing
@@ -136,7 +139,7 @@ Partial Module RPNETVB
         _OB = _RS(_IP)
     End Sub
 
-    <RPLWord> Sub parse()
+    <TRPLWord("STRTO")> Sub RplParse()
         _IP += 1
         Try
             Dim ob As Object = StrTo(_DS.Pop)
@@ -149,22 +152,22 @@ Partial Module RPNETVB
         _OB = _RS(_IP)
     End Sub
 
-    <RPLWord(";")> Sub DoSemi()
+    <TRPLWord(";")> Sub RplDOSEMI()
         _IP = _IPSTK.Pop()
         _RS = _RSSTK.Pop
         _OB = _RS(_IP)
     End Sub
 
-    <RPLWord("'")> Sub DoQuote()
+    <TRPLWord("'")> Sub RplQUOTE()
         _IP += 1
-        Dim startIndex As Integer = _IP
+        Dim startIndex As Int32 = _IP
         SkipOb()
         If _IP - startIndex > 1 Then
             Dim ob As Object = _RS(startIndex)
             ' i should really factor this out, have one composite class and the type as a parameter or something, because basically all composites are the same
             ' it's just the header that changes
             If IsCompositeHead(ob) Then ' really need anotherway to check if it starts a composite
-                _DS.Push(New Composite(ob, _RS.GetRange(startIndex + 1, _IP - startIndex - 2))) ' the semi doesn't exist explicitly in the list of objects
+                _DS.Push(New TComposite(ob, _RS.GetRange(startIndex + 1, _IP - startIndex - 2))) ' the semi doesn't exist explicitly in the list of objects
             Else
                 Throw New Exception("unknown composite")
             End If
@@ -174,63 +177,63 @@ Partial Module RPNETVB
         _OB = _RS(_IP)
     End Sub
 
-    <RPLWord> Sub dup()
+    <TRPLWord("DUP")> Sub RplDup()
         _IP += 1
         _DS.Push(_DS.Peek())
         _OB = _RS(_IP)
     End Sub
 
-    <RPLWord> Sub read()
+    <TRPLWord("INPUT")> Sub RplReadLine()
         _IP += 1
-        _DS.Push(R)
+        _DS.Push(r)
         _OB = _RS(_IP)
     End Sub
 
-    <RPLWord> Sub print()
+    <TRPLWord("PRINT")> Sub RplPrint()
         _IP += 1
         _OB = _RS(_IP)
-        If TypeOf _DS.Peek Is String Then W(_DS.Pop) Else W(tostr(_DS.Pop()))
+        If TypeOf _DS.Peek Is String Then w(_DS.Pop) Else w(Tostr(_DS.Pop()))
     End Sub
 
-    <RPLWord> Sub drop()
+    <TRPLWord("DROP")> Sub RplDrop()
         _IP += 1
         _DS.Pop()
         _OB = _RS(_IP)
     End Sub
 
-    <RPLWord("sym")> Sub DoSym()
-        Dim startIndex As Integer = _IP + 1 'keep it, before SkipOb rapes it
+    <TRPLWord("sym")> Sub RplDOSYM()
+        Dim startIndex As Int32 = _IP + 1 'keep it, before SkipOb rapes it
         SkipOb()
         _DS.Push(_RS.GetRange(startIndex, _IP - startIndex)) 'ignore DoList AND DoSemi (it's a list)
         _OB = _RS(_IP)
     End Sub
 
-    <RPLWord> Sub depth()
+    <TRPLWord("DEPTH")> Sub RplDataStackDepth()
         _IP += 1
         _DS.Push(_DS.Count)
         _OB = _RS(_IP)
     End Sub
 
-    <RPLWord> Sub swap() ' something as trivial as this takes so much time. it's just two pointers. 
+    <TRPLWord("SWAP")> Sub RplDataStackSwap() ' something as trivial as this takes so much time. it's just two pointers. 
         _IP += 1
         _DS.Push(_DS(1))
         _DS.RemoveAt(2)
         _OB = _RS(_IP)
     End Sub
 
-    <RPLWord> Sub pick()
+    <TRPLWord("PICK")> Sub RplDataStackPick()
         _IP += 1
         _DS.Push(_DS(_DS.Pop - 1)) ' in RPL, the top level stack is numbered "1" so # 1 pick is equivalent to dup
         _OB = _RS(_IP)
     End Sub
 
-    <RPLWord> Sub ifte()
+    <TRPLWord("IFTE")> Sub RplIFTE()
         '_IP += 1
         _OB = If(_DS(2), _DS(1), _DS(0))
         _DS.RemoveRange(0, 3)
     End Sub
 
-    <RPLWord("do")> Sub _do()
+    <TRPLWord("DO")> Sub RplDo()
         _IP += 1
         _OB = _RS(_IP)
         _LOOPSTK.Push(_LOOPstart)
@@ -243,7 +246,7 @@ Partial Module RPNETVB
         _LOOPindex = _LOOPstart
     End Sub
 
-    <RPLWord("loop")> Sub _loop()
+    <TRPLWord("LOOP")> Sub RplLoop()
         _LOOPindex += 1
         If _LOOPindex <= _LOOPend Then
             _IP = _LOOPip
@@ -257,7 +260,7 @@ Partial Module RPNETVB
         _OB = _RS(_IP)
     End Sub
 
-    <RPLWord()> Sub clear()
+    <TRPLWord("CLEAR")> Sub RplDataStackClear()
         _IP += 1
         _OB = _RS(_IP)
         _DS.Clear()
@@ -266,8 +269,8 @@ Partial Module RPNETVB
     Sub CreateComposite(head As Action)
         _IP += 1
         _OB = _RS(_IP)
-        Dim count As Integer = _DS.Pop
-        Dim comp As New Composite(head)
+        Dim count As Int32 = _DS.Pop
+        Dim comp As New TComposite(head)
         _DS.Push(comp)
         If count > 0 Then
             comp.AddRange(_DS.Skip(1).Take(count))
@@ -275,18 +278,18 @@ Partial Module RPNETVB
         End If
     End Sub
 
-    <RPLWord("::n")> Sub createSecondary()
+    <TRPLWord("::n")> Sub RplCreateSecondary()
         CreateComposite(_DoCol)
     End Sub
 
-    <RPLWord("{}n")> Sub createObList()
+    <TRPLWord("{}n")> Sub RplCreateList()
         CreateComposite(_DoList)
     End Sub
 
-    <RPLWord> Sub innercomp()
+    <TRPLWord("INNERCOMP")> Sub RplInnercomp()
         _IP += 1
         _OB = _RS(_IP)
-        Dim comp As Composite = _DS.Pop
+        Dim comp As TComposite = _DS.Pop
         For Each ob As Object In comp
             _DS.Push(ob)
         Next
@@ -294,31 +297,31 @@ Partial Module RPNETVB
     End Sub
 
     ' copout for now
-    <RPLWord("substr")> Sub _substr()
+    <TRPLWord("SUB")> Sub RplSubstring()
         _IP += 1
         _OB = _RS(_IP)
         _DS.Push(DirectCast(_DS(1), String).Substring(_DS(0)))
         _DS.RemoveRange(1, 2)
     End Sub
 
-    <RPLWord> Sub define()
+    <TRPLWord("DEFINE")> Sub RplDefine()
         _IP += 1
         _OB = _RS(_IP)
         If words.ContainsKey(_DS(0)) Then words(_DS(0)) = _DS(1) Else words.Add(_DS(0), _DS(1))
         _DS.RemoveRange(0, 2)
     End Sub
 
-    <RPLWord> Sub rcl()
+    <TRPLWord("RCL")> Sub RplRecallVariable() '' does nothing yet
         _IP += 1
         _OB = _RS(_IP)
     End Sub
 
-    <RPLWord("@")> Sub methodcall()
+    <TRPLWord("@")> Sub RplMethodCall() '' doubt it's implemented properly yet
         Dim methodname As String = _DS.Pop
         Dim args() As Object = New Object() {}
         Dim argtypes() As Type = New Type() {}
-        If TypeOf _DS(0) Is Composite Then
-            args = DirectCast(_DS.Pop, Composite).ToArray
+        If TypeOf _DS(0) Is TComposite Then
+            args = DirectCast(_DS.Pop, TComposite).ToArray
             argtypes = Type.GetTypeArray(args)
         End If
         Dim ob As Object = _DS.Pop
@@ -337,7 +340,7 @@ Partial Module RPNETVB
         _OB = _RS(_IP)
     End Sub
 
-    <RPLWord("?")> Sub fieldrecall()
+    <TRPLWord("?")> Sub RplFieldGetValue()
         Dim fieldname As String = _DS.Pop
         Dim ob As Object = _DS.Pop
         If TypeOf ob Is Type Then
@@ -354,26 +357,26 @@ Partial Module RPNETVB
                 End If
             End If
         Else
-            _DS.Push(Interaction.CallByName(ob, fieldname, CallType.Get))
+            _DS.Push(CallByName(ob, fieldname, CallType.Get))
         End If
         _IP += 1
         _OB = _RS(_IP)
     End Sub
 
-    <RPLWord("!")> Sub bang()
+    <TRPLWord("!")> Sub RplFieldSetValue()
         Dim fieldname As String = _DS.Pop
         Dim newvalue As Object = _DS.Pop
         Dim ob As Object = _DS.Pop
-        Interaction.CallByName(ob, fieldname, CallType.Set, newvalue)
+        CallByName(ob, fieldname, CallType.Set, newvalue)
         _IP += 1
         _OB = _RS(_IP)
     End Sub
 
-    <RPLWord("new")> Sub _new()
+    <TRPLWord("NEW")> Sub RplNew()
         Dim args() As Object = New Object() {}
         Dim argtypes() As Type = New Type() {}
-        If TypeOf _DS(0) Is Composite Then
-            args = DirectCast(_DS.Pop, Composite).ToArray
+        If TypeOf _DS(0) Is TComposite Then
+            args = DirectCast(_DS.Pop, TComposite).ToArray
             argtypes = Type.GetTypeArray(args)
         End If
         Dim ty As Type = _DS.Pop

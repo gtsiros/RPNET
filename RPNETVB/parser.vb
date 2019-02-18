@@ -1,10 +1,13 @@
-﻿Imports System.Linq
+﻿Imports System
+Imports System.Collections.Generic
+Imports System.Linq
 Imports System.Reflection
+Imports Microsoft.VisualBasic
 Partial Module RPNETVB
     Private escapes As New Dictionary(Of Char, Char) From {{"\"c, "\"c}, {"n"c, Chr(10)}, {"r"c, Chr(13)}, {"t"c, Chr(9)}, {""""c, """"c}}
-    Private type_specifier As New Dictionary(Of String, Type) From {{"#", GetType(Integer)}, {"%", GetType(Single)}, {"%%", GetType(Double)}, {"$", GetType(String)}}
+    Private type_specifier As New Dictionary(Of String, Type) From {{"#", GetType(Int32)}, {"%", GetType(Single)}, {"%%", GetType(Double)}, {"$", GetType(String)}}
 
-    Private Enum LexerState
+    Private Enum ELexerState
         token
         whitespace
         escape
@@ -40,10 +43,10 @@ Partial Module RPNETVB
         If tokens.Count = 0 Then Throw New Exception("null input")
         If tokens(0).Equals(_DoCol) OrElse tokens(0).Equals(_DoList) OrElse tokens(0).Equals(_DoSym) Then
             If tokens.Count < 2 Then Throw New Exception("expecting more tokens")
-            If Not tokens(tokens.Count - 1).Equals(_DoSemi) Then Throw New Exception("expected semi/endlist, found '" & tostr(tokens(tokens.Count - 1)) & "'")
-            StrTo = New Composite(tokens(0), tokens.Skip(1).Take(tokens.Count - 2)) ' skip its semi
+            If Not tokens(tokens.Count - 1).Equals(_DoSemi) Then Throw New Exception("expected semi/endlist, found '" & Tostr(tokens(tokens.Count - 1)) & "'")
+            StrTo = New TComposite(tokens(0), tokens.Skip(1).Take(tokens.Count - 2)) ' skip its semi
         ElseIf tokens.Count > 1 Then
-            Throw New Exception("composite implied, but can't start any with '" & tostr(tokens(0)) & "'")
+            Throw New Exception("composite implied, but can't start any with '" & Tostr(tokens(0)) & "'")
         Else
             StrTo = tokens(0)
         End If
@@ -51,62 +54,62 @@ Partial Module RPNETVB
 
     Private Function Split(str As String) As List(Of String)
         Split = New List(Of String)
-        Dim state As LexerState = LexerState.whitespace
+        Dim state As ELexerState = ELexerState.whitespace
         Dim token As String = ""
         For Each c As Char In str
             Select Case state
-                Case LexerState.whitespace
+                Case ELexerState.whitespace
                     If """"c = c Then
-                        state = LexerState.cstring
+                        state = ELexerState.cstring
                         token = ""
                     ElseIf "`"c = c Then
-                        state = LexerState.comment
+                        state = ELexerState.comment
                     ElseIf Not Char.IsWhiteSpace(c) Then
-                        state = LexerState.token
+                        state = ELexerState.token
                         token = c.ToString
                     End If
-                Case LexerState.token
+                Case ELexerState.token
                     If Char.IsWhiteSpace(c) Then
                         Split.Add(token)
                         token = ""
-                        state = LexerState.whitespace
+                        state = ELexerState.whitespace
                     Else
                         token &= c
                     End If
-                Case LexerState.cstring
+                Case ELexerState.cstring
                     If "\"c = c Then
-                        state = LexerState.escape
+                        state = ELexerState.escape
                     ElseIf """"c = c Then
                         Split.Add(token)
-                        state = LexerState.whitespace
+                        state = ELexerState.whitespace
                     Else
                         token &= c
                     End If
-                Case LexerState.escape
+                Case ELexerState.escape
                     If escapes.ContainsKey(c) Then
                         token &= escapes(c)
-                        state = LexerState.cstring
+                        state = ELexerState.cstring
                     Else
                         Throw New Exception("bad escape char '" & c & "'")
                     End If
-                Case LexerState.comment
+                Case ELexerState.comment
                     If Chr(10) = c OrElse Chr(13) = c Then
-                        state = LexerState.whitespace
+                        state = ELexerState.whitespace
                     End If
             End Select
         Next
         Select Case state
-            Case LexerState.comment ' all is ok
-            Case LexerState.whitespace
+            Case ELexerState.comment ' all is ok
+            Case ELexerState.whitespace
 
-            Case LexerState.token
+            Case ELexerState.token
                 Split.Add(token)
             Case Else
                 Throw New Exception("expecting " & state.ToString() & ", not '" & token & "'")
         End Select
     End Function
 
-    Private Function tostr(ob As Object) As String
+    Private Function Tostr(ob As Object) As String
         If ob Is Nothing Then Return "null"
         Dim ty As Type = ob.GetType
         Dim ts As String = ""
@@ -122,26 +125,27 @@ Partial Module RPNETVB
             Dim act As Action = DirectCast(ob, Action)
             If act.Method IsNot Nothing Then
                 Dim mi As MethodInfo = act.Method
-                Dim asRPLWord As RPLWord
-                asRPLWord = act.Method.GetCustomAttribute(GetType(RPLWord))
-                If asRPLWord IsNot Nothing Then Return If(asRPLWord.WordName.Length = 0, mi.Name, asRPLWord.WordName)
+                Dim asRPLWord As TRPLWord
+                asRPLWord = act.Method.GetCustomAttribute(GetType(TRPLWord))
+                If asRPLWord IsNot Nothing Then Return If(asRPLWord.wordName.Length = 0, mi.Name, asRPLWord.wordName)
             End If
             Return act.ToString
         End If
 
         If TypeOf ob Is Type Then Return "<" & DirectCast(ob, Type).FullName & ">"
-        If TypeOf ob Is Composite Then
-            Dim comp As Composite = ob
+        If TypeOf ob Is TComposite Then
+            Dim comp As TComposite = ob
             'Return comp.Aggregate(tostr(comp.head), Function(a, b) a & " " & tostr(b))
-            tostr = comp.Aggregate(tostr(comp.head), Function(a, b) a & " " & tostr(b))
-            If comp.head.Equals(_DoList) Then ' only one that ends with } instead of ;
-                Return tostr & " }"
-            Else
-                Return tostr & " ;" ' do-hoho
-            End If
+            Tostr = comp.Aggregate(Tostr(comp.head), Function(a, b) a & " " & Tostr(b))
+            Return Tostr & If(comp.head.Equals(_DoList), " }", " ;")
+            'If comp.head.Equals(_DoList) Then ' only one that ends with } instead of ;
+            '    Return Tostr & " }"
+            'Else
+            '    Return Tostr & " ;" ' do-hoho
+            'End If
         End If
-        tostr = words.FirstOrDefault(Function(kvp) kvp.Value.Equals(ob)).Key
-        Return If(tostr, "<""" & ob.ToString & """>")
+        Tostr = words.FirstOrDefault(Function(kvp) kvp.Value.Equals(ob)).Key
+        Return If(Tostr, "<""" & ob.ToString & """>")
     End Function
 
 End Module

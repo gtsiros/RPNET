@@ -1,48 +1,49 @@
-﻿
+﻿Imports System
+Imports System.Collections.Generic
 Imports System.Diagnostics
 
 Partial Module RPNETVB
 
-    <AttributeUsage(AttributeTargets.Method, Inherited:=False, AllowMultiple:=False)> Class RPLWord
+    <AttributeUsage(AttributeTargets.Method, Inherited:=False, AllowMultiple:=False)> Class TRPLWord
         Inherits Attribute
-        Public WordName As String
+        Public wordName As String
         Public Sub New(Optional name As String = "")
-            WordName = name
+            Me.wordName = name
         End Sub
     End Class
 
-    Class StackList(Of T)
+    Class TStackList(Of T)
         Inherits List(Of T)
         <DebuggerStepThrough> Public Function Pop() As T
-            Pop = MyBase.Item(0)
-            MyBase.RemoveAt(0)
+            Pop = Me.Item(0)
+            Me.RemoveAt(0)
         End Function
         <DebuggerStepThrough> Public Function Peek() As T
-            Peek = MyBase.Item(0)
+            Peek = Me.Item(0)
         End Function
         <DebuggerStepThrough> Public Sub Push(v As T)
-            MyBase.Insert(0, v)
+            Me.Insert(0, v)
         End Sub
     End Class
 
-    Class Composite
+    Class TComposite
         Inherits List(Of Object)
         Public head As Action
-        Public Shared Operator +(a As Composite, b As Object) As Composite
+        Public Shared Operator +(a As TComposite, b As Object) As TComposite
             a.Add(b)
             Return a
         End Operator
-        Public Shared Operator +(a As Composite, b As Composite) As Composite
+        Public Shared Operator +(a As TComposite, b As TComposite) As TComposite
             a.AddRange(b)
             Return a
         End Operator
-        Public Shared Operator +(a As Object, b As Composite) As Composite
+        Public Shared Operator +(a As Object, b As TComposite) As TComposite
             b.Insert(0, a)
             Return b
         End Operator
         Sub New(head As Action, Optional l As IEnumerable(Of Object) = Nothing)
             Me.head = head
-            If l IsNot Nothing Then AddRange(l)
+            If l IsNot Nothing Then Me.AddRange(l)
         End Sub
     End Class
 

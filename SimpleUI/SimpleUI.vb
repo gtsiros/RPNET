@@ -1,30 +1,30 @@
 ﻿Imports System.ComponentModel
 
-Public Class SimpleUI
+Public Class TSimpleUI
     Friend cmdq As New Queue(Of String)
 
     Friend WithEvents Gbw As New BackgroundWorker With {.WorkerSupportsCancellation = True}
 
-    Sub foo() Handles Me.Load
-        inp.Select()
+    Sub Foo() Handles Me.Load
+        Me.inp.Select()
     End Sub
 
-    Sub kd(ob As Object, args As KeyEventArgs) Handles inp.KeyDown
+    Sub Kd(ob As Object, args As KeyEventArgs) Handles inp.KeyDown
         If args.KeyData <> (Keys.Return Or Keys.Shift) Then Exit Sub
         args.SuppressKeyPress = True
-        Dim result As List(Of String) = Exec(inp.Text)
-        hist.AppendText(inp.Text & vbNewLine)
-        inp.Clear()
-        stk.Clear()
+        Dim result As List(Of String) = Exec(Me.inp.Text)
+        Me.hist.AppendText(Me.inp.Text & vbNewLine)
+        Me.inp.Clear()
+        Me.stk.Clear()
         If result.Count > 0 Then
-            Dim padlength As Integer = result.Count.ToString.Length ' haha.
+            Dim padlength As Int32 = result.Count.ToString.Length ' haha.
             For i = result.Count To 1 Step -1
-                stk.AppendText(i.ToString.PadLeft(padlength, " ") & ": " & result(i - 1) & vbNewLine)
+                Me.stk.AppendText(i.ToString.PadLeft(padlength, " ") & ": " & result(i - 1) & vbNewLine)
             Next
         Else
-            stk.AppendText("empty")
+            Me.stk.AppendText("empty")
         End If
-        outp.AppendText(RPNETVB.outstring)
+        Me.outp.AppendText(RPNETVB.outstring)
         args.Handled = True
     End Sub
 
